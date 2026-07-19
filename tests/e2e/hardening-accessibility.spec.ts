@@ -142,11 +142,27 @@ test("meets WCAG 2.2 AA automation across themes and responsive widths", async (
 
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.reload();
-  const duration = await page
+  const reducedMotion = await page
     .getByRole("button", { name: "Create a new note" })
     .first()
-    .evaluate((element) => getComputedStyle(element).transitionDuration);
-  expect(Number.parseFloat(duration)).toBeLessThan(0.001);
+    .evaluate((element) => {
+      const toMilliseconds = (value: string) => {
+        const token = value.trim();
+        if (token.endsWith("ms")) return Number.parseFloat(token);
+        if (token.endsWith("s")) return Number.parseFloat(token) * 1_000;
+        return Number.POSITIVE_INFINITY;
+      };
+      return {
+        mediaMatches: matchMedia("(prefers-reduced-motion: reduce)").matches,
+        maxTransitionMilliseconds: Math.max(
+          ...getComputedStyle(element)
+            .transitionDuration.split(",")
+            .map(toMilliseconds),
+        ),
+      };
+    });
+  expect(reducedMotion.mediaMatches).toBe(true);
+  expect(reducedMotion.maxTransitionMilliseconds).toBeLessThanOrEqual(0.01);
 });
 
 test("traps and restores keyboard focus for organization and destructive dialogs", async ({
