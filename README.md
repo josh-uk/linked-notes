@@ -4,8 +4,8 @@ Linked Notes is a deliberately simple, local-only note-taking application with d
 
 The current application includes the responsive workspace, rich-text note editing,
 debounced autosave, optimistic-concurrency conflict recovery, pinning, trash and
-restore, and light, dark, and system themes. Durable links between notes arrive in
-Phase 2.
+restore, durable `@` links with contextual backlinks, and light, dark, and system
+themes.
 
 ## Quick start
 
@@ -43,12 +43,22 @@ Run the baseline quality gate with `npm run check`. See [development documentati
 - Choose **New** or press <kbd>Ctrl</kbd>/<kbd>Cmd</kbd>+<kbd>N</kbd> to create a note.
 - Edit the title and rich-text body directly. The save indicator reports unsaved,
   saving, saved, failed, and conflicting states.
+- Type `@` in a note to search active notes. Use the arrow keys and
+  <kbd>Enter</kbd>, or choose a result with the pointer. Linking the current note
+  to itself is supported and labelled in the menu.
+- Select a mention to open its note. Mentions show the target's current title
+  without rewriting the source document, and visibly identify archived, trashed,
+  or permanently removed targets.
+- Expand **Backlinks** below the editor to see every source note and each nearby
+  context that links to the open note.
 - Use **Pinned** and **Trash** in the workspace navigation to find lifecycle views.
 - On smaller screens, use the back and menu buttons to move between the editor,
   note list, and workspace navigation.
 
-Notes are soft-deleted in Phase 1. Permanent deletion is deliberately deferred so
-later phases can protect links and attachments before destructive removal exists.
+Notes are soft-deleted from the workspace. The server's guarded permanent-delete
+path only accepts already-trashed notes; inbound mentions retain their immutable
+target identity and become explicit broken references. A user-facing permanent
+deletion flow arrives with the expanded lifecycle controls in Phase 3.
 
 ## Safety and privacy
 
