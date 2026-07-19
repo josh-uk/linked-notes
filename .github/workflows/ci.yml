@@ -19,6 +19,20 @@ jobs:
     timeout-minutes: 20
     env:
       DATABASE_URL: postgresql://linked_notes:linked_notes@127.0.0.1:5432/linked_notes
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_DB: linked_notes
+          POSTGRES_USER: linked_notes
+          POSTGRES_PASSWORD: linked_notes
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U linked_notes -d linked_notes"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
@@ -31,8 +45,48 @@ jobs:
       - run: npm run typecheck
       - run: npm run prisma:validate
       - run: npm run test
+      - run: npx prisma migrate deploy
       - run: npm run test:integration
       - run: npm run build
+
+  browser:
+    name: Browser journeys
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      DATABASE_URL: postgresql://linked_notes:linked_notes@127.0.0.1:5432/linked_notes
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_DB: linked_notes
+          POSTGRES_USER: linked_notes
+          POSTGRES_PASSWORD: linked_notes
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U linked_notes -d linked_notes"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npx prisma migrate deploy
+      - run: npm run test:e2e
+      - name: Retain browser report
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: phase-browser-report
+          path: playwright-report
+          if-no-files-found: error
+          retention-days: 14
 
   container:
     name: Container build
