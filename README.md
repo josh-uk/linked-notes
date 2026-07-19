@@ -2,10 +2,11 @@
 
 Linked Notes is a deliberately simple, local-only note-taking application with durable links between notes. It combines a calm writing experience with local PostgreSQL storage, persistent attachments, portable backups, and no account, telemetry, cloud service, or runtime internet dependency.
 
-The current application includes the responsive workspace, rich-text note editing,
-debounced autosave, optimistic-concurrency conflict recovery, pinning, trash and
-restore, durable `@` links with contextual backlinks, and light, dark, and system
-themes.
+The current application includes a desktop-first three-pane workspace with a
+responsive mobile stack, rich-text editing, debounced autosave,
+optimistic-concurrency conflict recovery, nested folders, coloured tags, bulk
+actions, pin/archive/trash lifecycle controls, PostgreSQL full-text search,
+durable `@` links with contextual backlinks, and light, dark, and system themes.
 
 ## Quick start
 
@@ -51,14 +52,24 @@ Run the baseline quality gate with `npm run check`. See [development documentati
   or permanently removed targets.
 - Expand **Backlinks** below the editor to see every source note and each nearby
   context that links to the open note.
-- Use **Pinned** and **Trash** in the workspace navigation to find lifecycle views.
+- Press <kbd>Ctrl</kbd>/<kbd>Cmd</kbd>+<kbd>K</kbd> to focus search. Search covers
+  titles and note bodies, highlights matches, ranks titles first, and combines
+  with folder, tag, lifecycle, and attachment filters.
+- Create nested folders and coloured tags from their management controls in the
+  left sidebar. A note can be moved or tagged from the editor; desktop selection
+  mode applies move, tag, pin, archive, restore, or trash actions to up to 100
+  notes transactionally.
+- Use **Pinned**, **Archive**, and **Trash** for lifecycle views. Restoring an
+  archived note returns it to active notes; restoring a trashed archived note
+  returns it to the archive.
+- Permanent deletion is available only from Trash and requires confirmation.
+  Trash retention defaults to **Never** and can be changed in Workspace Settings.
 - On smaller screens, use the back and menu buttons to move between the editor,
   note list, and workspace navigation.
 
 Notes are soft-deleted from the workspace. The server's guarded permanent-delete
 path only accepts already-trashed notes; inbound mentions retain their immutable
-target identity and become explicit broken references. A user-facing permanent
-deletion flow arrives with the expanded lifecycle controls in Phase 3.
+target identity and become explicit broken references.
 
 ## Safety and privacy
 
@@ -70,6 +81,7 @@ Linked Notes is single-user software with no authentication. Keep the default lo
 - [Development](docs/development.md)
 - [Backup format](docs/backup-format.md)
 - [Threat model](docs/threat-model.md)
+- [Performance measurements](docs/performance.md)
 - [Release process](docs/releases.md)
 - [Contributing](CONTRIBUTING.md)
 - [Security policy](SECURITY.md)

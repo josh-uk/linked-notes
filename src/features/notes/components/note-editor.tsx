@@ -3,13 +3,17 @@
 import { EditorContent, useEditor } from "@tiptap/react";
 import {
   AlertTriangle,
+  Archive,
+  ArchiveRestore,
   Check,
   ChevronLeft,
   CloudOff,
+  FolderClosed,
   LoaderCircle,
   Pin,
   PinOff,
   RotateCcw,
+  Tags,
   Trash2,
 } from "lucide-react";
 import {
@@ -30,9 +34,11 @@ import type {
   EditorDocument,
   NoteDetail,
   NoteLifecycleAction,
+  OrganizationResponse,
 } from "../types";
 import { EditorToolbar } from "./editor-toolbar";
 import { BacklinksPanel } from "./backlinks-panel";
+import { PermanentDeleteDialog } from "./permanent-delete-dialog";
 
 type SaveState = "saved" | "unsaved" | "saving" | "error" | "conflict";
 
@@ -47,15 +53,25 @@ type RecoverableDraft = {
 
 type NoteEditorProps = {
   note: NoteDetail;
+  organization: OrganizationResponse | null;
   onSaved: (note: NoteDetail) => void;
   onLifecycle: (note: NoteDetail, action: NoteLifecycleAction) => void;
+  onDeleted: (noteId: string) => void;
   onOpenLinkedNote: (noteId: string) => void;
   onBack: () => void;
 };
 
 export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
   function NoteEditor(
-    { note, onSaved, onLifecycle, onOpenLinkedNote, onBack },
+    {
+      note,
+      organization,
+      onSaved,
+      onLifecycle,
+      onDeleted,
+      onOpenLinkedNote,
+      onBack,
+    },
     ref,
   ) {
     const [title, setTitle] = useState(note.title);
@@ -65,6 +81,7 @@ export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
     const [recoverableDraft, setRecoverableDraft] =
       useState<RecoverableDraft | null>(null);
     const [actionPending, setActionPending] = useState(false);
+    const [confirmPermanentDelete, setConfirmPermanentDelete] = useState(false);
 
     const titleRef = useRef(note.title);
     const contentRef = useRef(note.content);
@@ -295,6 +312,81 @@ export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
       }
     }
 
+    async function updateOrganization(change: {
+      folderId?: string | null;
+      tagIds?: string[];
+    }) {
+      if (!(await flush())) return;
+      setActionPending(true);
+      setSaveMessage(null);
+      try {
+        const response = await fetch(`/api/notes/${note.id}/metadata`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            expectedVersion: versionRef.current,
+            ...change,
+          }),
+        });
+        const payload = (await response.json()) as NoteDetail | ApiError;
+        if (!response.ok || "error" in payload) {
+          if ("error" in payload && payload.error.current) {
+            conflictRef.current = payload.error.current;
+            setConflict(payload.error.current);
+            setSaveState("conflict");
+            return;
+          }
+          throw new Error(
+            "error" in payload
+              ? payload.error.message
+              : "The note could not be organized",
+          );
+        }
+        versionRef.current = payload.optimisticVersion;
+        onSaved(payload);
+        setSaveState("saved");
+      } catch (error) {
+        setSaveState("error");
+        setSaveMessage(
+          error instanceof Error
+            ? error.message
+            : "The note could not be organized",
+        );
+      } finally {
+        setActionPending(false);
+      }
+    }
+
+    async function permanentlyDelete(): Promise<string | null> {
+      if (!(await flush()))
+        return "The note could not be saved before deletion.";
+      try {
+        const response = await fetch(`/api/notes/${note.id}/actions`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "delete",
+            expectedVersion: versionRef.current,
+          }),
+        });
+        const payload = (await response.json()) as
+          { id: string; deleted: true } | ApiError;
+        if (!response.ok || "error" in payload) {
+          return "error" in payload
+            ? payload.error.message
+            : "The note could not be permanently deleted";
+        }
+        setConfirmPermanentDelete(false);
+        clearPersistedDraft(note.id);
+        onDeleted(note.id);
+        return null;
+      } catch (error) {
+        return error instanceof Error
+          ? error.message
+          : "The note could not be permanently deleted";
+      }
+    }
+
     function restoreDraft(draft: RecoverableDraft) {
       setTitle(draft.title);
       editor?.commands.setContent(draft.content, { emitUpdate: false });
@@ -377,18 +469,40 @@ export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
           </div>
           <div className="editor-actions">
             {!note.trashedAt ? (
-              <button
-                type="button"
-                className="icon-button"
-                disabled={actionPending}
-                aria-label={note.pinnedAt ? "Unpin note" : "Pin note"}
-                title={note.pinnedAt ? "Unpin note" : "Pin note"}
-                onClick={() =>
-                  void runLifecycle(note.pinnedAt ? "unpin" : "pin")
-                }
-              >
-                {note.pinnedAt ? <PinOff size={18} /> : <Pin size={18} />}
-              </button>
+              <>
+                <button
+                  type="button"
+                  className="icon-button"
+                  disabled={actionPending}
+                  aria-label={note.pinnedAt ? "Unpin note" : "Pin note"}
+                  title={note.pinnedAt ? "Unpin note" : "Pin note"}
+                  onClick={() =>
+                    void runLifecycle(note.pinnedAt ? "unpin" : "pin")
+                  }
+                >
+                  {note.pinnedAt ? <PinOff size={18} /> : <Pin size={18} />}
+                </button>
+                <button
+                  type="button"
+                  className="icon-button"
+                  disabled={actionPending}
+                  aria-label={
+                    note.archivedAt
+                      ? "Restore note from archive"
+                      : "Archive note"
+                  }
+                  title={note.archivedAt ? "Restore from archive" : "Archive"}
+                  onClick={() =>
+                    void runLifecycle(note.archivedAt ? "unarchive" : "archive")
+                  }
+                >
+                  {note.archivedAt ? (
+                    <ArchiveRestore size={18} />
+                  ) : (
+                    <Archive size={18} />
+                  )}
+                </button>
+              </>
             ) : null}
             <button
               type="button"
@@ -404,6 +518,18 @@ export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
             >
               {note.trashedAt ? <RotateCcw size={18} /> : <Trash2 size={18} />}
             </button>
+            {note.trashedAt ? (
+              <button
+                type="button"
+                className="icon-button danger-icon"
+                disabled={actionPending}
+                aria-label="Delete note permanently"
+                title="Delete permanently"
+                onClick={() => setConfirmPermanentDelete(true)}
+              >
+                <Trash2 size={18} />
+              </button>
+            ) : null}
           </div>
         </header>
 
@@ -490,6 +616,72 @@ export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
               timeStyle: "short",
             }).format(new Date(note.updatedAt))}
           </p>
+          {organization ? (
+            <div className="note-organization-controls">
+              <label>
+                <FolderClosed size={14} aria-hidden="true" />
+                <span className="sr-only">Move note to folder</span>
+                <select
+                  aria-label="Move note to folder"
+                  value={note.folder?.id ?? ""}
+                  disabled={actionPending}
+                  onChange={(event) =>
+                    void updateOrganization({
+                      folderId: event.target.value || null,
+                    })
+                  }
+                >
+                  <option value="">No folder</option>
+                  {organization.folders.map((folder) => (
+                    <option key={folder.id} value={folder.id}>
+                      {folder.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <details className="note-tag-picker">
+                <summary>
+                  <Tags size={14} aria-hidden="true" />
+                  Tags ({note.tags.length})
+                </summary>
+                <div>
+                  {organization.tags.length ? (
+                    organization.tags.map((tag) => {
+                      const checked = note.tags.some(({ id }) => id === tag.id);
+                      return (
+                        <label key={tag.id}>
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            disabled={actionPending}
+                            onChange={() =>
+                              void updateOrganization({
+                                tagIds: checked
+                                  ? note.tags
+                                      .filter(({ id }) => id !== tag.id)
+                                      .map(({ id }) => id)
+                                  : [...note.tags.map(({ id }) => id), tag.id],
+                              })
+                            }
+                          />
+                          <span
+                            className="tag-dot"
+                            style={{
+                              backgroundColor: tag.color ?? "var(--subtle)",
+                            }}
+                            aria-hidden="true"
+                          />
+                          {tag.displayName}
+                        </label>
+                      );
+                    })
+                  ) : (
+                    <span>No tags yet. Add them from workspace settings.</span>
+                  )}
+                </div>
+              </details>
+            </div>
+          ) : null}
         </div>
 
         <EditorToolbar editor={editor} />
@@ -501,6 +693,12 @@ export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
           <EditorContent editor={editor} />
           <BacklinksPanel noteId={note.id} onOpenNote={onOpenLinkedNote} />
         </div>
+        <PermanentDeleteDialog
+          open={confirmPermanentDelete}
+          noteTitle={note.title}
+          onCancel={() => setConfirmPermanentDelete(false)}
+          onConfirm={permanentlyDelete}
+        />
       </section>
     );
   },

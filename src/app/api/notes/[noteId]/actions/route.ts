@@ -16,7 +16,10 @@ export async function POST(request: NextRequest, context: NoteRouteContext) {
     const { noteId } = await context.params;
     const value = (await request.json()) as { action?: unknown };
     if (value.action === "delete") {
-      const input = permanentDeleteInputSchema.parse(value);
+      const input = permanentDeleteInputSchema.parse({
+        expectedVersion: (value as { expectedVersion?: unknown })
+          .expectedVersion,
+      });
       return NextResponse.json(await deleteNotePermanently(noteId, input));
     }
     const input = lifecycleInputSchema.parse(value);

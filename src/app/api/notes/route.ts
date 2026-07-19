@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { ZodError } from "zod";
 
+import { noteApiError } from "@/server/notes/api-response";
 import {
   createNote,
   listNotes,
@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
       headers: { "Cache-Control": "no-store" },
     });
   } catch (error) {
-    return apiError(error);
+    return noteApiError(error, "Linked Notes could not load the notes");
   }
 }
 
@@ -27,33 +27,6 @@ export async function POST(request: NextRequest) {
     const input = await request.json();
     return NextResponse.json(await createNote(input), { status: 201 });
   } catch (error) {
-    return apiError(error);
+    return noteApiError(error, "Linked Notes could not create the note");
   }
-}
-
-function apiError(error: unknown) {
-  if (error instanceof ZodError) {
-    return NextResponse.json(
-      {
-        error: {
-          code: "INVALID_INPUT",
-          message: "The note request was invalid",
-        },
-      },
-      { status: 400 },
-    );
-  }
-
-  console.error("note_api_error", {
-    error: error instanceof Error ? error.name : "unknown",
-  });
-  return NextResponse.json(
-    {
-      error: {
-        code: "INTERNAL_ERROR",
-        message: "Linked Notes could not complete the request",
-      },
-    },
-    { status: 500 },
-  );
 }
