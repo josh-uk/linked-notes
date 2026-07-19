@@ -113,7 +113,7 @@ function minimalManifest(): BackupManifest {
     format: "linked-notes-backup",
     backupSchemaVersion: 1,
     dataSchemaVersion: 1,
-    applicationVersion: "0.0.0",
+    applicationVersion: "1.0.0",
     createdAt: timestamp,
     entities: {
       schemaMetadata: {

@@ -1,0 +1,103 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  validate_tag:
+    name: Validate release tag
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      source_sha: ${{ steps.release.outputs.source_sha }}
+      version: ${{ steps.release.outputs.version }}
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          fetch-depth: 0
+      - id: release
+        name: Require stable SemVer on current master
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+          SOURCE_SHA: ${{ github.sha }}
+        shell: bash
+        run: |
+          if [[ ! "$RELEASE_TAG" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
+            echo "Release tag must be stable SemVer in vX.Y.Z form" >&2
+            exit 1
+          fi
+          version="${RELEASE_TAG#v}"
+          if [ "$(node -p 'require("./package.json").version')" != "$version" ]; then
+            echo "package.json version does not match $RELEASE_TAG" >&2
+            exit 1
+          fi
+          if ! grep -Fq "## [$version] -" CHANGELOG.md; then
+            echo "CHANGELOG.md has no dated $version entry" >&2
+            exit 1
+          fi
+          git fetch origin master
+          if [ "$(git rev-parse origin/master)" != "$SOURCE_SHA" ]; then
+            echo "Release tag must point at the current master commit" >&2
+            exit 1
+          fi
+          echo "source_sha=$SOURCE_SHA" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+  validation:
+    name: Full release validation
+    needs: validate_tag
+    permissions:
+      contents: read
+    uses: ./.github/workflows/ci.yml
+    with:
+      source_sha: ${{ needs.validate_tag.outputs.source_sha }}
+
+  publish:
+    name: Publish versioned release images
+    needs: [validate_tag, validation]
+    if: needs.validation.result == 'success'
+    permissions:
+      attestations: write
+      contents: read
+      id-token: write
+      packages: write
+    uses: ./.github/workflows/image-publish.yml
+    with:
+      source_sha: ${{ needs.validate_tag.outputs.source_sha }}
+      channel: release
+      release_tag: ${{ github.ref_name }}
+
+  create_release:
+    name: Create GitHub Release
+    needs: [validate_tag, publish]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      actions: read
+      contents: write
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: release-assets-${{ github.ref_name }}
+          path: release-assets
+      - name: Publish generated release notes and evidence assets
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ github.ref_name }}
+          VERSION: ${{ needs.validate_tag.outputs.version }}
+        run: >-
+          gh release create "$RELEASE_TAG" release-assets/*
+          --repo "$GITHUB_REPOSITORY"
+          --verify-tag
+          --generate-notes
+          --latest
+          --title "Linked Notes $VERSION"

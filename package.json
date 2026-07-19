@@ -1,6 +1,6 @@
 {
   "name": "linked-notes",
-  "version": "0.0.0",
+  "version": "1.0.0",
   "private": true,
   "description": "A calm, local-only note-taking app with durable links between notes.",
   "license": "MIT",
@@ -21,10 +21,13 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:integration": "vitest run --config vitest.integration.config.ts",
+    "test:migrations": "node scripts/test-migrations.mjs",
     "test:security": "vitest run --config vitest.security.config.ts",
     "test:performance": "tsx scripts/measure-search.ts",
     "test:upload-memory": "tsx scripts/measure-upload-memory.ts",
     "test:e2e": "playwright test",
+    "test:release-image": "node scripts/release-image-smoke.mjs",
+    "test:release-audit": "node scripts/audit-release.mjs",
     "test:smoke": "tsx scripts/smoke.ts",
     "check": "npm run format:check && npm run lint && npm run typecheck && npm run prisma:validate && npm run test && npm run build"
   },

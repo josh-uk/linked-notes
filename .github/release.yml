@@ -1,0 +1,18 @@
+changelog:
+  exclude:
+    labels:
+      - dependencies
+    authors:
+      - dependabot
+  categories:
+    - title: Product and experience
+      labels:
+        - feature
+        - enhancement
+    - title: Security and reliability
+      labels:
+        - security
+        - bug
+    - title: Maintenance
+      labels:
+        - "*"

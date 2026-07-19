@@ -17,11 +17,14 @@ npm run typecheck
 npm run prisma:validate
 npm run test
 npm run test:integration
+npm run test:migrations # creates/drops only guarded *_migration_* databases
+npm run test:release-audit # repository/version/docs/workflow drift
 npm run test:security # exercises the PDF network-denial boundary
 npm run test:performance # requires an isolated *_performance database
 npm run test:upload-memory # requires the local Docker app
 npm run build
 npm run test:e2e
+npm run test:release-image # requires locally tagged app/migration candidate images
 docker compose config
 docker compose build
 ```
@@ -36,6 +39,13 @@ loading/empty/error/self-link suggestions, rename-safe display, contextual
 backlinks, lifecycle states, permanent-target deletion, broken references, and
 link removal. To run browser tests against an already-running development server,
 set `PLAYWRIGHT_EXTERNAL_SERVER=1` and `PLAYWRIGHT_BASE_URL`.
+
+The migration harness creates two explicitly named disposable databases through
+`MIGRATION_TEST_DATABASE_URL`: one receives every migration from empty, while
+the other receives only the earliest repository migration, real note/link rows,
+then the remaining migrations. It proves data preservation and durable-link
+backfill before dropping both databases. The maintenance database URL must end
+in `/postgres` or `/template1`.
 
 Phase 3 coverage adds real-PostgreSQL checks for folder depth and cycles,
 destructive folder choices, normalized tags, bulk rollback, lifecycle/search
@@ -131,6 +141,27 @@ APP_CONTAINER=linked-notes-app-1 \
 UPLOAD_BYTES=100663296 \
 npm run test:upload-memory
 ```
+
+## Release image proof
+
+Build both Docker targets, then run the isolated internal-network journey:
+
+```bash
+docker build --target migrate -t linked-notes-migrate:release-candidate .
+docker build --target runner -t linked-notes:release-candidate .
+APP_IMAGE=linked-notes:release-candidate \
+MIGRATE_IMAGE=linked-notes-migrate:release-candidate \
+TARGET_PLATFORM=linux/amd64 \
+npm run test:release-image
+```
+
+The script creates uniquely named disposable containers, volumes, and an
+`--internal` network; migrates an empty database; verifies health, note and
+attachment writes, PDF output, portable backup/replace restore, app replacement
+persistence, and a denied outbound probe; then removes only those named
+resources. GitHub repeats it for amd64 and arm64 before any image is published.
+On Docker Desktop a stuck first `docker start` client is killed and retried by
+the harness without touching unrelated containers.
 
 ## Security scans
 
