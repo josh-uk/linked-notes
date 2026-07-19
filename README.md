@@ -2,8 +2,10 @@
 
 Linked Notes is a deliberately simple, local-only note-taking application with durable links between notes. It combines a calm writing experience with local PostgreSQL storage, persistent attachments, portable backups, and no account, telemetry, cloud service, or runtime internet dependency.
 
-> [!NOTE]
-> The repository is currently at the delivery-foundation milestone. Note editing and linking arrive in the next implementation phases.
+The current application includes the responsive workspace, rich-text note editing,
+debounced autosave, optimistic-concurrency conflict recovery, pinning, trash and
+restore, and light, dark, and system themes. Durable links between notes arrive in
+Phase 2.
 
 ## Quick start
 
@@ -35,6 +37,18 @@ DATABASE_URL=postgresql://linked_notes:your-password@127.0.0.1:5432/linked_notes
 ```
 
 Run the baseline quality gate with `npm run check`. See [development documentation](docs/development.md) for the full workflow.
+
+## Using the workspace
+
+- Choose **New** or press <kbd>Ctrl</kbd>/<kbd>Cmd</kbd>+<kbd>N</kbd> to create a note.
+- Edit the title and rich-text body directly. The save indicator reports unsaved,
+  saving, saved, failed, and conflicting states.
+- Use **Pinned** and **Trash** in the workspace navigation to find lifecycle views.
+- On smaller screens, use the back and menu buttons to move between the editor,
+  note list, and workspace navigation.
+
+Notes are soft-deleted in Phase 1. Permanent deletion is deliberately deferred so
+later phases can protect links and attachments before destructive removal exists.
 
 ## Safety and privacy
 
