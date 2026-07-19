@@ -12,6 +12,8 @@ Linked Notes protects one local user's notes and attachments from accidental los
 
 ## Baseline controls
 
-Boundary data is schema-validated; rich text and URLs are sanitised; database access is parameterised through Prisma; filenames never become storage paths; downloads disable MIME sniffing; destructive operations require confirmation; optimistic versions prevent silent overwrites; logs exclude note bodies and attachment bytes. The Compose port binds to loopback and its application network has no outbound route.
+Boundary data is schema-validated; rich text and URLs are sanitised; database access is parameterised through Prisma; filenames never become storage paths; downloads disable MIME sniffing; destructive operations require confirmation; optimistic versions prevent silent overwrites; logs exclude note bodies and attachment bytes. Mention suggestions and contexts are inserted into the DOM as text rather than HTML, mention attributes require UUIDs and bounded fallback labels, and duplicate mention-instance IDs are rejected. Link-index reconciliation shares the note-save transaction, preventing a rejected stale write from corrupting backlinks. Permanent deletion requires a trashed note and matching optimistic version, while inbound references retain only non-secret IDs, fallback labels, and bounded source context.
+
+The Compose port binds to loopback and its application network has no outbound route.
 
 The database and application share an internal-only backend network. Each also joins a frontend bridge so Docker Desktop can publish loopback-bound application and development-database ports; neither port binds to the LAN by default, and application code makes no external runtime requests. Security work in Phase 6 will add and verify CSP, stored-XSS cases, unsafe-scheme rejection, archive traversal/bomb controls, print-renderer network denial, explicit egress controls where practical, logging review, keyboard safety, and scanning evidence.
