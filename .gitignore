@@ -1,0 +1,30 @@
+# dependencies
+/node_modules
+/.pnp
+.pnp.*
+
+# tests and build output
+/coverage
+/playwright-report
+/test-results
+/.next
+/out
+
+# local runtime data
+/data
+/backups
+
+# local environment
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# tooling and operating systems
+*.tsbuildinfo
+next-env.d.ts
+.DS_Store
+.idea
+.vscode/*
+!.vscode/extensions.json
+npm-debug.log*
