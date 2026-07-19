@@ -151,30 +151,33 @@ const nodeSchema: z.ZodType<EditorNode> = z.lazy(() =>
     }),
 );
 
-export const editorDocumentSchema = nodeSchema.superRefine(
-  (document, context) => {
-    if (document.type !== "doc") {
+const documentNodeSchema = nodeSchema.superRefine((document, context) => {
+  if (document.type !== "doc") {
+    context.addIssue({
+      code: "custom",
+      message: "Editor content must start with a doc node",
+    });
+  }
+
+  const mentionIds = new Set<string>();
+  visitEditorNodes(document, (node) => {
+    if (node.type !== "mention") return;
+    const mentionId = node.attrs?.mentionId;
+    if (typeof mentionId !== "string") return;
+    if (mentionIds.has(mentionId)) {
       context.addIssue({
         code: "custom",
-        message: "Editor content must start with a doc node",
+        message: "Mention instance IDs must be unique within a note",
       });
     }
+    mentionIds.add(mentionId);
+  });
+});
 
-    const mentionIds = new Set<string>();
-    visitEditorNodes(document, (node) => {
-      if (node.type !== "mention") return;
-      const mentionId = node.attrs?.mentionId;
-      if (typeof mentionId !== "string") return;
-      if (mentionIds.has(mentionId)) {
-        context.addIssue({
-          code: "custom",
-          message: "Mention instance IDs must be unique within a note",
-        });
-      }
-      mentionIds.add(mentionId);
-    });
-  },
-);
+export const editorDocumentSchema = z
+  .unknown()
+  .superRefine(validateDocumentResourceLimits)
+  .pipe(documentNodeSchema);
 
 function visitEditorNodes(
   node: EditorNode,
@@ -190,16 +193,86 @@ export function parseEditorDocument(value: unknown): EditorDocument {
 
 export function isSafeLink(href: string): boolean {
   const trimmed = href.trim();
-  if (trimmed.startsWith("/") || trimmed.startsWith("#")) return true;
+  if (
+    !trimmed ||
+    trimmed.length > 2_048 ||
+    /[\u0000-\u001f\u007f]/.test(trimmed)
+  ) {
+    return false;
+  }
+  if (trimmed.startsWith("#")) return true;
+  if (trimmed.startsWith("/")) {
+    return !trimmed.startsWith("//") && !trimmed.startsWith("/\\");
+  }
 
   try {
     const url = new URL(trimmed);
+    if (url.protocol === "mailto:") return true;
     return (
-      url.protocol === "http:" ||
-      url.protocol === "https:" ||
-      url.protocol === "mailto:"
+      (url.protocol === "http:" || url.protocol === "https:") &&
+      !url.username &&
+      !url.password
     );
   } catch {
     return false;
+  }
+}
+
+function validateDocumentResourceLimits(
+  value: unknown,
+  context: z.RefinementCtx,
+) {
+  const stack: Array<{ value: unknown; depth: number }> = [{ value, depth: 0 }];
+  const seen = new WeakSet<object>();
+  let nodes = 0;
+  let textUnits = 0;
+  while (stack.length > 0) {
+    const current = stack.pop()!;
+    if (
+      typeof current.value !== "object" ||
+      current.value === null ||
+      Array.isArray(current.value)
+    ) {
+      continue;
+    }
+    if (seen.has(current.value)) {
+      context.addIssue({
+        code: "custom",
+        message: "Editor content cannot contain cycles",
+      });
+      return;
+    }
+    seen.add(current.value);
+    nodes += 1;
+    if (nodes > 50_000) {
+      context.addIssue({
+        code: "custom",
+        message: "Editor content exceeded the node limit",
+      });
+      return;
+    }
+    if (current.depth > 32) {
+      context.addIssue({
+        code: "custom",
+        message: "Editor content exceeded the nesting limit",
+      });
+      return;
+    }
+    const node = current.value as { text?: unknown; content?: unknown };
+    if (typeof node.text === "string") {
+      textUnits += node.text.length;
+      if (textUnits > 2_000_000) {
+        context.addIssue({
+          code: "custom",
+          message: "Editor content exceeded the text limit",
+        });
+        return;
+      }
+    }
+    if (Array.isArray(node.content)) {
+      for (const child of node.content) {
+        stack.push({ value: child, depth: current.depth + 1 });
+      }
+    }
   }
 }

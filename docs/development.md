@@ -17,6 +17,7 @@ npm run typecheck
 npm run prisma:validate
 npm run test
 npm run test:integration
+npm run test:security # exercises the PDF network-denial boundary
 npm run test:performance # requires an isolated *_performance database
 npm run test:upload-memory # requires the local Docker app
 npm run build
@@ -61,6 +62,14 @@ downloads Markdown, generates the same PDF twice and compares SHA-256, downloads
 a complete archive, performs a confirmed replace, downloads the safety backup,
 and verifies the restored workspace.
 
+Phase 6 coverage adds aggregate editor resource bounds, unsafe URL and stored-XSS
+regressions, private-error/log redaction, direct PDF network denial, paginated
+backlink integration, 10,000-note/list/link timings, and a 96 MiB upload-memory
+profile. Production Playwright runs Axe in light and dark desktop themes, checks
+responsive overflow and reduced motion, and drives real keyboard focus through
+organization and destructive dialogs. See the [accessibility audit](accessibility.md),
+[security audit](security-audit.md), and [performance measurements](performance.md).
+
 Backup/restore integration and browser journeys replace the complete isolated
 workspace and must run with one worker. Never point either at the preview or a
 personal database. The browser server also needs a writable absolute
@@ -103,9 +112,10 @@ PERFORMANCE_DATABASE_URL=postgresql://linked_notes:your-password@127.0.0.1:5432/
 ```
 
 The script seeds 10,000 notes plus representative folders, tags, links, and
-attachments; warms and samples ranked full-text search and the main paginated
-list; and prints timing statistics with `EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON)`.
-It is a repeatable regression profile, not a universal latency guarantee.
+attachments; warms and samples ranked full-text search, first/deep keyset note
+pages, paginated backlinks, suggestions, and an extreme 1,000-mention save; and
+prints timing statistics with `EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON)`. It is a
+repeatable regression profile, not a universal latency guarantee.
 
 ## Upload memory profile
 
@@ -120,6 +130,23 @@ APP_URL=http://127.0.0.1:3000 \
 APP_CONTAINER=linked-notes-app-1 \
 UPLOAD_BYTES=100663296 \
 npm run test:upload-memory
+```
+
+## Security scans
+
+Pull requests and `master` run full-history Gitleaks, high-severity npm audit,
+CodeQL, and a Trivy scan of the exact production runner target. GitHub Actions
+and scanner versions are pinned; high/critical image findings with available
+fixes fail the workflow and the JSON result is retained as an artifact.
+
+Equivalent local checks, using the versions pinned in
+`.github/workflows/security.yml`, are:
+
+```bash
+gitleaks git --redact --verbose
+npm audit --audit-level=high
+docker build --target runner -t linked-notes:security-scan .
+trivy image --scanners vuln --pkg-types os,library --ignore-unfixed --severity HIGH,CRITICAL --exit-code 1 linked-notes:security-scan
 ```
 
 ## Dependency pins

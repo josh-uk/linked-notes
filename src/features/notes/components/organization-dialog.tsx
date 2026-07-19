@@ -20,6 +20,7 @@ import type {
   OrganizationResponse,
   TagSummary,
 } from "../types";
+import { trapDialogFocus } from "./dialog-focus";
 
 type OrganizationSection = "folders" | "tags" | "settings";
 
@@ -85,6 +86,8 @@ export function OrganizationDialog({
   onWorkspaceRestored,
 }: OrganizationDialogProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const previousFocusRef = useRef<HTMLElement | null>(null);
   const restoreInputRef = useRef<HTMLInputElement>(null);
   const restoreRequestRef = useRef<XMLHttpRequest | null>(null);
   const [section, setSection] = useState<OrganizationSection>(initialSection);
@@ -124,7 +127,12 @@ export function OrganizationDialog({
       setSection(initialSection);
       setError(null);
       setMessage(null);
+      previousFocusRef.current =
+        document.activeElement instanceof HTMLElement
+          ? document.activeElement
+          : null;
       dialog.showModal();
+      requestAnimationFrame(() => closeButtonRef.current?.focus());
     }
     if (!open && dialog.open) dialog.close();
   }, [initialSection, open]);
@@ -314,11 +322,18 @@ export function OrganizationDialog({
       ref={dialogRef}
       className="organization-dialog"
       aria-labelledby="organization-title"
+      onKeyDown={trapDialogFocus}
       onCancel={(event) => {
         event.preventDefault();
-        if (!pending) onClose();
+        if (!pending) dialogRef.current?.close();
       }}
-      onClose={onClose}
+      onClose={() => {
+        const previous = previousFocusRef.current;
+        previousFocusRef.current = null;
+        if (previous?.isConnected)
+          requestAnimationFrame(() => previous.focus());
+        onClose();
+      }}
     >
       <header className="dialog-header">
         <div>
@@ -326,11 +341,12 @@ export function OrganizationDialog({
           <h2 id="organization-title">Organize notes</h2>
         </div>
         <button
+          ref={closeButtonRef}
           type="button"
           className="icon-button"
           disabled={pending}
           aria-label="Close organization settings"
-          onClick={onClose}
+          onClick={() => dialogRef.current?.close()}
         >
           <X size={18} aria-hidden="true" />
         </button>

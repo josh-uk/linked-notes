@@ -11,7 +11,7 @@ import {
   storedFileState,
 } from "@/server/attachments/attachment-storage";
 import { NoteDomainError } from "@/server/notes/note-errors";
-import { listBacklinks } from "@/server/notes/note-links";
+import { listBacklinksPage } from "@/server/notes/note-links";
 import { getNote } from "@/server/notes/note-service";
 
 import { renderNoteMarkdown } from "./markdown";
@@ -76,7 +76,9 @@ export async function exportNote(noteId: string, value: unknown) {
     },
     mentionTargets: note.mentionTargets,
     attachments: pdfAttachments,
-    backlinks: input.backlinks ? await listBacklinks(note.id) : null,
+    backlinks: input.backlinks
+      ? await listBacklinksPage(note.id, { limit: 100 })
+      : null,
   });
   return {
     body,

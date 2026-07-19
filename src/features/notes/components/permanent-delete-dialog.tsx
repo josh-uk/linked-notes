@@ -3,6 +3,8 @@
 import { Trash2, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
+import { trapDialogFocus } from "./dialog-focus";
+
 type PermanentDeleteDialogProps = {
   open: boolean;
   noteTitle: string;
@@ -17,6 +19,8 @@ export function PermanentDeleteDialog({
   onConfirm,
 }: PermanentDeleteDialogProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
+  const keepButtonRef = useRef<HTMLButtonElement>(null);
+  const previousFocusRef = useRef<HTMLElement | null>(null);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -25,7 +29,12 @@ export function PermanentDeleteDialog({
     if (!dialog) return;
     if (open && !dialog.open) {
       setError(null);
+      previousFocusRef.current =
+        document.activeElement instanceof HTMLElement
+          ? document.activeElement
+          : null;
       dialog.showModal();
+      requestAnimationFrame(() => keepButtonRef.current?.focus());
     }
     if (!open && dialog.open) dialog.close();
   }, [open]);
@@ -35,17 +44,25 @@ export function PermanentDeleteDialog({
       ref={dialogRef}
       className="confirm-dialog"
       aria-labelledby="permanent-delete-title"
+      onKeyDown={trapDialogFocus}
       onCancel={(event) => {
         event.preventDefault();
+        if (!pending) dialogRef.current?.close();
+      }}
+      onClose={() => {
+        const previous = previousFocusRef.current;
+        previousFocusRef.current = null;
+        if (previous?.isConnected)
+          requestAnimationFrame(() => previous.focus());
         onCancel();
       }}
-      onClose={onCancel}
     >
       <button
         type="button"
         className="icon-button dialog-close"
         aria-label="Cancel permanent deletion"
-        onClick={onCancel}
+        disabled={pending}
+        onClick={() => dialogRef.current?.close()}
       >
         <X size={18} aria-hidden="true" />
       </button>
@@ -63,7 +80,12 @@ export function PermanentDeleteDialog({
         </div>
       ) : null}
       <div className="dialog-actions">
-        <button type="button" disabled={pending} onClick={onCancel}>
+        <button
+          ref={keepButtonRef}
+          type="button"
+          disabled={pending}
+          onClick={() => dialogRef.current?.close()}
+        >
           Keep note
         </button>
         <button

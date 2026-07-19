@@ -1,6 +1,10 @@
 import { performance } from "node:perf_hooks";
+import { randomUUID } from "node:crypto";
 
 import { Prisma, PrismaClient } from "@prisma/client";
+
+import type { EditorDocument } from "@/features/notes/types";
+import { deriveEditorDocument } from "@/server/notes/derive-document";
 
 const databaseUrl = process.env.PERFORMANCE_DATABASE_URL;
 if (!databaseUrl) {
@@ -17,9 +21,24 @@ if (!databaseName.endsWith("_performance")) {
 const prisma = new PrismaClient({ datasourceUrl: databaseUrl });
 const noteCount = 10_000;
 const sampleCount = 25;
+const editorSampleCount = 8;
 
 async function main() {
   const seedStarted = performance.now();
+  await prisma.$executeRawUnsafe(`
+    CREATE OR REPLACE FUNCTION linked_notes_benchmark_uuid(value text)
+    RETURNS uuid
+    LANGUAGE SQL
+    IMMUTABLE
+    STRICT
+    PARALLEL SAFE
+    AS $function$
+      SELECT (
+        substr(md5(value), 1, 12) || '4' || substr(md5(value), 14, 3) ||
+        '8' || substr(md5(value), 18, 15)
+      )::uuid
+    $function$
+  `);
   await prisma.$executeRawUnsafe(`
     TRUNCATE TABLE
       "Attachment", "NoteTag", "NoteLink", "Note", "Folder", "Tag", "Setting"
@@ -27,13 +46,13 @@ async function main() {
   `);
   await prisma.$executeRawUnsafe(`
     INSERT INTO "Folder" ("id", "name", "parentId", "sortOrder", "updatedAt")
-    SELECT md5('folder-' || value)::uuid, 'Folder ' || value, NULL, value, now()
+    SELECT linked_notes_benchmark_uuid('folder-' || value), 'Folder ' || value, NULL, value, now()
     FROM generate_series(1, 20) AS value
   `);
   await prisma.$executeRawUnsafe(`
     INSERT INTO "Tag" ("id", "normalizedName", "displayName", "color", "updatedAt")
     SELECT
-      md5('tag-' || value)::uuid,
+      linked_notes_benchmark_uuid('tag-' || value),
       'tag ' || value,
       'Tag ' || value,
       '#4f46e5',
@@ -47,7 +66,7 @@ async function main() {
       "createdAt", "updatedAt"
     )
     SELECT
-      md5('note-' || value)::uuid,
+      linked_notes_benchmark_uuid('note-' || value),
       CASE WHEN value % 100 = 0
         THEN 'Orchid title result ' || value
         ELSE 'Representative note ' || value
@@ -70,7 +89,7 @@ async function main() {
       '<p>Representative note</p>',
       1,
       1,
-      md5('folder-' || ((value % 20) + 1))::uuid,
+      linked_notes_benchmark_uuid('folder-' || ((value % 20) + 1)),
       CASE WHEN value % 17 = 0 THEN now() ELSE NULL END,
       CASE WHEN value % 23 = 0 THEN now() ELSE NULL END,
       CASE WHEN value % 41 = 0 THEN now() ELSE NULL END,
@@ -81,8 +100,8 @@ async function main() {
   await prisma.$executeRawUnsafe(`
     INSERT INTO "NoteTag" ("noteId", "tagId")
     SELECT
-      md5('note-' || value)::uuid,
-      md5('tag-' || ((value % 30) + 1))::uuid
+      linked_notes_benchmark_uuid('note-' || value),
+      linked_notes_benchmark_uuid('tag-' || ((value % 30) + 1))
     FROM generate_series(1, ${noteCount}) AS value
   `);
   await prisma.$executeRawUnsafe(`
@@ -90,10 +109,10 @@ async function main() {
       "sourceNoteId", "targetNoteId", "targetKey", "mentionId", "context", "updatedAt"
     )
     SELECT
-      md5('note-' || value)::uuid,
-      md5('note-' || ((value % ${noteCount}) + 1))::uuid,
-      md5('note-' || ((value % ${noteCount}) + 1))::uuid,
-      md5('mention-' || value)::uuid,
+      linked_notes_benchmark_uuid('note-' || value),
+      linked_notes_benchmark_uuid('note-' || (CASE WHEN value <= 1000 THEN 1 ELSE ((value % ${noteCount}) + 1) END)),
+      linked_notes_benchmark_uuid('note-' || (CASE WHEN value <= 1000 THEN 1 ELSE ((value % ${noteCount}) + 1) END)),
+      linked_notes_benchmark_uuid('mention-' || value),
       'Representative link context ' || value,
       now()
     FROM generate_series(1, ${noteCount}) AS value
@@ -103,8 +122,8 @@ async function main() {
       "id", "noteId", "originalName", "storageName", "mimeType", "byteSize", "checksumSha256"
     )
     SELECT
-      md5('attachment-' || value)::uuid,
-      md5('note-' || (value * 10))::uuid,
+      linked_notes_benchmark_uuid('attachment-' || value),
+      linked_notes_benchmark_uuid('note-' || (value * 10)),
       'sample-' || value || '.bin',
       'sample-' || value,
       'application/octet-stream',
@@ -113,6 +132,7 @@ async function main() {
     FROM generate_series(1, ${noteCount / 10}) AS value
   `);
   await prisma.$executeRawUnsafe('ANALYZE "Note"');
+  await prisma.$executeRawUnsafe('ANALYZE "NoteLink"');
   const seedMs = performance.now() - seedStarted;
 
   const searchSamples: number[] = [];
@@ -132,6 +152,123 @@ async function main() {
       select: { id: true, title: true, updatedAt: true },
     });
     listSamples.push(performance.now() - started);
+  }
+
+  const deepCursor = await prisma.note.findFirstOrThrow({
+    where: { trashedAt: null, archivedAt: null },
+    orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
+    skip: 4_999,
+    select: { id: true },
+  });
+  const deepListSamples: number[] = [];
+  for (let sample = 0; sample < sampleCount; sample += 1) {
+    const started = performance.now();
+    await prisma.note.findMany({
+      where: { trashedAt: null, archivedAt: null },
+      orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
+      cursor: { id: deepCursor.id },
+      skip: 1,
+      take: 40,
+      select: { id: true, title: true, updatedAt: true },
+    });
+    deepListSamples.push(performance.now() - started);
+  }
+
+  const backlinkTarget = await prisma.note.findFirstOrThrow({
+    where: { title: "Representative note 1" },
+    select: { id: true },
+  });
+  const backlinkSamples: number[] = [];
+  for (let sample = 0; sample < sampleCount; sample += 1) {
+    const started = performance.now();
+    await prisma.noteLink.findMany({
+      where: { targetKey: backlinkTarget.id },
+      orderBy: [
+        { updatedAt: "desc" },
+        { sourceNoteId: "asc" },
+        { mentionId: "asc" },
+      ],
+      take: 51,
+      include: {
+        sourceNote: {
+          select: {
+            id: true,
+            title: true,
+            archivedAt: true,
+            trashedAt: true,
+            updatedAt: true,
+          },
+        },
+      },
+    });
+    backlinkSamples.push(performance.now() - started);
+  }
+
+  const suggestionSamples: number[] = [];
+  for (let sample = 0; sample < sampleCount; sample += 1) {
+    const started = performance.now();
+    await measuredSuggestions();
+    suggestionSamples.push(performance.now() - started);
+  }
+
+  const editorTargets = await prisma.note.findMany({
+    orderBy: { id: "asc" },
+    take: 1_000,
+    select: { id: true },
+  });
+  const editorSource = await prisma.note.findFirstOrThrow({
+    where: { title: "Orchid title result 2000" },
+    select: { id: true },
+  });
+  const editorDocument: EditorDocument = {
+    type: "doc",
+    content: [
+      {
+        type: "paragraph",
+        content: editorTargets.map((target, index) => ({
+          type: "mention",
+          attrs: {
+            id: target.id,
+            mentionId: randomUUID(),
+            label: `Representative target ${index}`,
+          },
+        })),
+      },
+    ],
+  };
+  const editorDeriveSamples: number[] = [];
+  const linkReconcileSamples: number[] = [];
+  for (let sample = 0; sample < editorSampleCount; sample += 1) {
+    const deriveStarted = performance.now();
+    const derived = deriveEditorDocument(editorDocument);
+    editorDeriveSamples.push(performance.now() - deriveStarted);
+    const reconcileStarted = performance.now();
+    await prisma.$transaction(async (transaction) => {
+      await transaction.noteLink.deleteMany({
+        where: { sourceNoteId: editorSource.id },
+      });
+      await transaction.noteLink.createMany({
+        data: editorTargets.map((target, index) => ({
+          sourceNoteId: editorSource.id,
+          targetNoteId: target.id,
+          targetKey: target.id,
+          mentionId: String(
+            editorDocument.content![0]!.content![index]!.attrs!.mentionId,
+          ),
+          context: `Representative target ${index}`,
+        })),
+      });
+      await transaction.note.update({
+        where: { id: editorSource.id },
+        data: {
+          content: derived.content as Prisma.InputJsonValue,
+          contentText: derived.plainText,
+          contentHtml: derived.sanitizedHtml,
+          optimisticVersion: { increment: 1 },
+        },
+      });
+    });
+    linkReconcileSamples.push(performance.now() - reconcileStarted);
   }
 
   const plan = await prisma.$queryRawUnsafe<Array<Record<string, unknown>>>(`
@@ -155,6 +292,26 @@ async function main() {
       n."updatedAt" DESC
     LIMIT 40
   `);
+  const listPlan = await prisma.$queryRawUnsafe<
+    Array<Record<string, unknown>>
+  >(`
+    EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON)
+    SELECT "id", "title", "updatedAt"
+    FROM "Note"
+    WHERE "trashedAt" IS NULL AND "archivedAt" IS NULL
+    ORDER BY "updatedAt" DESC, "id" DESC
+    LIMIT 40
+  `);
+  const backlinkPlan = await prisma.$queryRaw<Array<Record<string, unknown>>>(
+    Prisma.sql`
+    EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON)
+    SELECT "sourceNoteId", "mentionId", "context"
+    FROM "NoteLink"
+    WHERE "targetKey" = ${backlinkTarget.id}::uuid
+    ORDER BY "updatedAt" DESC, "sourceNoteId" ASC, "mentionId" ASC
+    LIMIT 51
+  `,
+  );
 
   console.log(
     JSON.stringify(
@@ -171,12 +328,37 @@ async function main() {
         seedMs: round(seedMs),
         searchMs: statistics(searchSamples),
         listMs: statistics(listSamples),
-        explain: plan[0]?.["QUERY PLAN"],
+        deepCursorListMs: statistics(deepListSamples),
+        backlinkPageMs: statistics(backlinkSamples),
+        suggestionMs: statistics(suggestionSamples),
+        editorDerive1000MentionsMs: statistics(editorDeriveSamples),
+        linkReconcile1000MentionsMs: statistics(linkReconcileSamples),
+        explain: {
+          search: plan[0]?.["QUERY PLAN"],
+          list: listPlan[0]?.["QUERY PLAN"],
+          backlinks: backlinkPlan[0]?.["QUERY PLAN"],
+        },
       },
       null,
       2,
     ),
   );
+}
+
+async function measuredSuggestions() {
+  return prisma.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+    SELECT "id"
+    FROM "Note"
+    WHERE "trashedAt" IS NULL
+      AND "archivedAt" IS NULL
+      AND strpos(lower("title"), 'representative') > 0
+    ORDER BY
+      CASE WHEN left(lower("title"), char_length('representative')) = 'representative'
+        THEN 0 ELSE 1 END,
+      "updatedAt" DESC,
+      "id" ASC
+    LIMIT 10
+  `);
 }
 
 async function measuredSearch() {
@@ -220,4 +402,11 @@ main()
     console.error(error instanceof Error ? error.message : error);
     process.exitCode = 1;
   })
-  .finally(async () => prisma.$disconnect());
+  .finally(async () => {
+    await prisma
+      .$executeRawUnsafe(
+        "DROP FUNCTION IF EXISTS linked_notes_benchmark_uuid(text)",
+      )
+      .catch(() => undefined);
+    await prisma.$disconnect();
+  });

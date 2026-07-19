@@ -51,8 +51,8 @@ Run the baseline quality gate with `npm run check`. See [development documentati
 - Select a mention to open its note. Mentions show the target's current title
   without rewriting the source document, and visibly identify archived, trashed,
   or permanently removed targets.
-- Expand **Backlinks** below the editor to see every source note and each nearby
-  context that links to the open note.
+- Expand **Backlinks** below the editor to page through source notes and each
+  nearby context that links to the open note.
 - Press <kbd>Ctrl</kbd>/<kbd>Cmd</kbd>+<kbd>K</kbd> to focus search. Search covers
   titles and note bodies, highlights matches, ranks titles first, and combines
   with folder, tag, lifecycle, and attachment filters.
@@ -72,7 +72,8 @@ Run the baseline quality gate with `npm run check`. See [development documentati
   from the desktop workspace.
 - Export the selected note from its desktop editor header as readable Markdown
   or a deterministic PDF. PDF exports include local raster attachments, metadata,
-  and optional backlinks without allowing Chromium to fetch network resources.
+  and optionally the first 100 backlink mentions with an explicit truncation
+  notice, without allowing Chromium to fetch network resources.
 - From **Workspace Settings → Portable backup**, download the complete versioned
   workspace archive or stage and validate one for merge/replace restore. Replace
   requires typing `REPLACE` and creates a downloadable safety backup before any
@@ -101,6 +102,8 @@ upgrades and keep a verified copy outside the Docker volumes. See
 - [Development](docs/development.md)
 - [Backup format](docs/backup-format.md)
 - [Threat model](docs/threat-model.md)
+- [Accessibility audit](docs/accessibility.md)
+- [Security and privacy audit](docs/security-audit.md)
 - [Performance measurements](docs/performance.md)
 - [Attachment storage and recovery](docs/attachments.md)
 - [Release process](docs/releases.md)
