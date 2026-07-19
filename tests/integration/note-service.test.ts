@@ -9,13 +9,24 @@ import {
   searchMentionSuggestions,
 } from "@/server/notes/note-links";
 import {
+  createFolder,
+  createTag,
+  deleteFolder,
+  getOrganization,
+  setTrashRetention,
+  updateFolder,
+  updateTag,
+} from "@/server/notes/organization-service";
+import {
   applyNoteLifecycle,
+  applyBulkNoteAction,
   createNote,
   deleteNotePermanently,
   getNote,
   listNotes,
   updateNote,
 } from "@/server/notes/note-service";
+import { searchNotes } from "@/server/notes/search-service";
 
 const richDocument = {
   type: "doc",
@@ -55,7 +66,12 @@ function linkedDocument(
 
 describe("note service", () => {
   beforeAll(() => prisma.$connect());
-  beforeEach(() => prisma.note.deleteMany());
+  beforeEach(async () => {
+    await prisma.note.deleteMany();
+    await prisma.folder.deleteMany();
+    await prisma.tag.deleteMany();
+    await prisma.setting.deleteMany();
+  });
   afterAll(() => prisma.$disconnect());
 
   it("creates, reads, and atomically updates a derived editor document", async () => {
@@ -312,5 +328,226 @@ describe("note service", () => {
     const suggestions = await searchMentionSuggestions("needle");
     expect(suggestions).toHaveLength(10);
     expect(suggestions[0]?.id).toBe(prefix.id);
+  });
+
+  it("enforces folder depth and cycles and makes folder deletion explicit", async () => {
+    const folders: Array<Awaited<ReturnType<typeof createFolder>>> = [];
+    let parentId: string | null = null;
+    for (let depth = 1; depth <= 6; depth += 1) {
+      const folder = await createFolder({
+        name: `Level ${depth}`,
+        parentId,
+        sortOrder: depth,
+      });
+      folders.push(folder);
+      parentId = folder.id;
+    }
+
+    await expect(
+      createFolder({ name: "Too deep", parentId, sortOrder: 0 }),
+    ).rejects.toMatchObject({ code: "FOLDER_DEPTH_EXCEEDED", status: 409 });
+    await expect(
+      updateFolder(folders[0]!.id, { parentId: folders[5]!.id }),
+    ).rejects.toMatchObject({ code: "FOLDER_CYCLE", status: 409 });
+
+    const directNote = await createNote({
+      title: "Direct child note",
+      folderId: folders[0]!.id,
+    });
+    await deleteFolder(folders[0]!.id, { strategy: "move-to-parent" });
+    expect((await getNote(directNote.id)).folder).toBeNull();
+    expect((await getOrganization()).folders).toHaveLength(5);
+
+    const doomedRoot = await createFolder({
+      name: "Doomed root",
+      parentId: null,
+      sortOrder: 0,
+    });
+    const doomedChild = await createFolder({
+      name: "Doomed child",
+      parentId: doomedRoot.id,
+      sortOrder: 0,
+    });
+    const doomedNote = await createNote({
+      title: "Doomed note",
+      folderId: doomedChild.id,
+    });
+    await deleteFolder(doomedRoot.id, { strategy: "trash-notes" });
+    expect(await getNote(doomedNote.id)).toMatchObject({
+      folder: null,
+      trashedAt: expect.any(String),
+    });
+  });
+
+  it("normalizes editable tags while preserving note associations", async () => {
+    const tag = await createTag({
+      name: "  Project   Atlas ",
+      color: "#3366aa",
+    });
+    await expect(
+      createTag({ name: "project atlas", color: null }),
+    ).rejects.toMatchObject({ code: "ORGANIZATION_CONFLICT", status: 409 });
+
+    const note = await createNote({
+      title: "Tagged at creation",
+      tagIds: [tag.id],
+    });
+    const renamed = await updateTag(tag.id, {
+      name: "Atlas Work",
+      color: "#aa6633",
+    });
+    expect(renamed).toMatchObject({
+      id: tag.id,
+      normalizedName: "atlas work",
+      displayName: "Atlas Work",
+      color: "#aa6633",
+      noteCount: 1,
+    });
+    expect((await getNote(note.id)).tags).toEqual([
+      { id: tag.id, displayName: "Atlas Work", color: "#aa6633" },
+    ]);
+  });
+
+  it("rolls back a stale bulk action and applies valid move, tag, and archive actions", async () => {
+    const folder = await createFolder({
+      name: "Bulk destination",
+      parentId: null,
+      sortOrder: 0,
+    });
+    const tag = await createTag({ name: "Bulk tag", color: null });
+    const first = await createNote({ title: "Bulk one" });
+    const second = await createNote({ title: "Bulk two" });
+
+    await expect(
+      applyBulkNoteAction({
+        action: "move",
+        folderId: folder.id,
+        notes: [
+          { id: first.id, expectedVersion: first.optimisticVersion },
+          { id: second.id, expectedVersion: second.optimisticVersion + 1 },
+        ],
+      }),
+    ).rejects.toMatchObject({ code: "BULK_CONFLICT", status: 409 });
+    expect((await getNote(first.id)).folder).toBeNull();
+
+    const moved = await applyBulkNoteAction({
+      action: "move",
+      folderId: folder.id,
+      notes: [
+        { id: first.id, expectedVersion: first.optimisticVersion },
+        { id: second.id, expectedVersion: second.optimisticVersion },
+      ],
+    });
+    const tagged = await applyBulkNoteAction({
+      action: "tag",
+      tagIds: [tag.id],
+      notes: moved.items.map(({ id, optimisticVersion }) => ({
+        id,
+        expectedVersion: optimisticVersion,
+      })),
+    });
+    const archived = await applyBulkNoteAction({
+      action: "archive",
+      notes: tagged.items.map(({ id, optimisticVersion }) => ({
+        id,
+        expectedVersion: optimisticVersion,
+      })),
+    });
+    expect(archived.items.every(({ archivedAt }) => archivedAt !== null)).toBe(
+      true,
+    );
+    expect(await getNote(first.id)).toMatchObject({
+      folder: { id: folder.id },
+      tags: [{ id: tag.id }],
+      archivedAt: expect.any(String),
+    });
+  });
+
+  it("ranks title matches first and filters full-text search by lifecycle and metadata", async () => {
+    const folder = await createFolder({
+      name: "Search scope",
+      parentId: null,
+      sortOrder: 0,
+    });
+    const tag = await createTag({ name: "Research", color: "#4f46e5" });
+    const titleMatch = await createNote({
+      title: "Orchid launch plan",
+      folderId: folder.id,
+      tagIds: [tag.id],
+    });
+    const bodyMatch = await createNote({ title: "Garden observations" });
+    await updateNote(bodyMatch.id, {
+      expectedVersion: bodyMatch.optimisticVersion,
+      content: {
+        type: "doc",
+        content: [
+          {
+            type: "paragraph",
+            content: [{ type: "text", text: "The rare orchid bloomed today." }],
+          },
+        ],
+      },
+    });
+
+    const searchInput = {
+      q: "orchid",
+      view: "all" as const,
+      attachments: "any" as const,
+      sort: "relevance" as const,
+      direction: "desc" as const,
+      offset: 0,
+      limit: 40,
+    };
+    const results = await searchNotes(searchInput);
+    expect(results.items.map(({ id }) => id)).toEqual([
+      titleMatch.id,
+      bodyMatch.id,
+    ]);
+    expect(results.items[0]?.titleHighlight).toContain("<mark>Orchid</mark>");
+    expect(results.items[1]?.highlight).toContain("<mark>orchid</mark>");
+    expect(
+      await searchNotes({
+        ...searchInput,
+        folderId: folder.id,
+        tagIds: [tag.id],
+      }),
+    ).toMatchObject({ items: [{ id: titleMatch.id }] });
+
+    const archived = await applyNoteLifecycle(titleMatch.id, {
+      action: "archive",
+      expectedVersion: titleMatch.optimisticVersion,
+    });
+    expect((await searchNotes(searchInput)).items.map(({ id }) => id)).toEqual([
+      bodyMatch.id,
+    ]);
+    expect(
+      (
+        await searchNotes({
+          ...searchInput,
+          view: "archive",
+          folderId: folder.id,
+        })
+      ).items[0],
+    ).toMatchObject({ id: titleMatch.id, archivedAt: archived.archivedAt });
+
+    const indexes = await prisma.$queryRaw<Array<{ indexdef: string }>>`
+      SELECT indexdef FROM pg_indexes
+      WHERE schemaname = 'public' AND indexname = 'Note_content_search_idx'
+    `;
+    expect(indexes[0]?.indexdef).toContain("USING gin");
+  });
+
+  it("defaults trash retention to never and deletes only after it is configured", async () => {
+    const note = await createNote({ title: "Retention candidate" });
+    await prisma.note.update({
+      where: { id: note.id },
+      data: { trashedAt: new Date("2020-01-01T00:00:00.000Z") },
+    });
+    await listNotes({ view: "trash", limit: 40 });
+    expect(await prisma.note.count({ where: { id: note.id } })).toBe(1);
+
+    await setTrashRetention({ days: 30 });
+    await listNotes({ view: "trash", limit: 40 });
+    expect(await prisma.note.count({ where: { id: note.id } })).toBe(0);
   });
 });

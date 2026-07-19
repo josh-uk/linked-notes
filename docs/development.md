@@ -17,6 +17,7 @@ npm run typecheck
 npm run prisma:validate
 npm run test
 npm run test:integration
+npm run test:performance # requires an isolated *_performance database
 npm run build
 npm run test:e2e
 docker compose config
@@ -33,6 +34,13 @@ loading/empty/error/self-link suggestions, rename-safe display, contextual
 backlinks, lifecycle states, permanent-target deletion, broken references, and
 link removal. To run browser tests against an already-running development server,
 set `PLAYWRIGHT_EXTERNAL_SERVER=1` and `PLAYWRIGHT_BASE_URL`.
+
+Phase 3 coverage adds real-PostgreSQL checks for folder depth and cycles,
+destructive folder choices, normalized tags, bulk rollback, lifecycle/search
+consistency, ranking/highlighting, GIN index presence, and trash retention. The
+desktop Playwright journeys exercise folder/tag management, atomic note
+placement, title/body search, archive/trash/permanent deletion, bulk
+move/tag/archive, crowded-sidebar scrolling, and Axe.
 
 For example, when the default ports are already occupied:
 
@@ -51,6 +59,21 @@ Durable-link schema changes must preserve both identities: `targetKey` is the
 immutable backlink key and `targetNoteId` is only the nullable live relation.
 Migration tests should cover rename, lifecycle state, target deletion, multiple
 mentions, and removal during a successful optimistic save.
+
+## Search performance profile
+
+`npm run test:performance` deliberately replaces data, so it refuses to run
+unless `PERFORMANCE_DATABASE_URL` names a database ending in `_performance`.
+Create and migrate an isolated database, then run:
+
+```bash
+PERFORMANCE_DATABASE_URL=postgresql://linked_notes:your-password@127.0.0.1:5432/linked_notes_performance npm run test:performance
+```
+
+The script seeds 10,000 notes plus representative folders, tags, links, and
+attachments; warms and samples ranked full-text search and the main paginated
+list; and prints timing statistics with `EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON)`.
+It is a repeatable regression profile, not a universal latency guarantee.
 
 ## Dependency pins
 
