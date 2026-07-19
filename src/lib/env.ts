@@ -11,6 +11,24 @@ export const serverEnvSchema = z.object({
     })
     .default("/data/attachments"),
   MAX_UPLOAD_BYTES: z.coerce.number().int().positive().default(104_857_600),
+  MAX_PDF_IMAGE_BYTES: z.coerce.number().int().positive().default(26_214_400),
+  MAX_BACKUP_ARCHIVE_BYTES: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(2_147_483_648),
+  MAX_BACKUP_EXPANDED_BYTES: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(4_294_967_296),
+  MAX_BACKUP_MANIFEST_BYTES: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(26_214_400),
+  MAX_BACKUP_ENTRIES: z.coerce.number().int().positive().default(50_000),
+  MAX_BACKUP_COMPRESSION_RATIO: z.coerce.number().positive().default(5_000),
   NODE_ENV: z
     .enum(["development", "test", "production"])
     .default("development"),

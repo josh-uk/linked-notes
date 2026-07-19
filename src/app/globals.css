@@ -1913,6 +1913,120 @@ dialog::backdrop {
   margin-top: 0.3rem;
 }
 
+.backup-tools {
+  display: grid;
+  gap: 0.65rem;
+  margin-top: 0.2rem;
+  padding: 0.9rem;
+  border: 1px solid var(--line);
+  border-radius: 0.75rem;
+  background: var(--list);
+}
+
+.backup-tools h3 {
+  display: flex;
+  align-items: center;
+  gap: 0.42rem;
+  margin: 0;
+  font-size: 0.82rem;
+}
+
+.backup-tools > p,
+.restore-form > p {
+  margin: 0;
+}
+
+.backup-download,
+.restore-form > button,
+.restore-report a,
+.restore-report button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.38rem;
+  width: fit-content;
+  min-height: 2.2rem;
+  padding: 0 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: 0.58rem;
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 0.7rem;
+  font-weight: 740;
+  text-decoration: none;
+}
+
+.backup-download:hover,
+.restore-report a:hover {
+  border-color: var(--accent);
+  color: var(--accent-ink);
+}
+
+.restore-form {
+  display: grid;
+  gap: 0.7rem;
+  margin-top: 0.3rem;
+  padding-top: 0.85rem;
+  border-top: 1px solid var(--line);
+}
+
+.restore-form label {
+  display: grid;
+  gap: 0.36rem;
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-weight: 720;
+}
+
+.restore-form input,
+.restore-form select {
+  width: 100%;
+  min-height: 2.35rem;
+  padding: 0.45rem 0.62rem;
+  border: 1px solid var(--line);
+  border-radius: 0.55rem;
+  background: var(--surface);
+  color: var(--ink);
+}
+
+.restore-form input[type="file"] {
+  min-height: auto;
+}
+
+.replace-confirmation {
+  padding: 0.68rem;
+  border: 1px solid color-mix(in srgb, var(--danger) 42%, var(--line));
+  border-radius: 0.62rem;
+  background: var(--danger-soft);
+  color: var(--danger) !important;
+}
+
+.restore-form > small {
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.restore-progress,
+.restore-report {
+  display: grid;
+  gap: 0.4rem;
+  padding: 0.65rem;
+  border: 1px solid var(--line);
+  border-radius: 0.62rem;
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 0.69rem;
+}
+
+.restore-progress progress {
+  width: 100%;
+  accent-color: var(--accent);
+}
+
+.restore-report strong {
+  color: var(--ink);
+}
+
 .destructive-choice label {
   display: flex;
   align-items: flex-start;
