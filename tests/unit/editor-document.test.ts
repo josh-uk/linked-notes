@@ -81,6 +81,77 @@ describe("editor documents", () => {
         ],
       }),
     ).toThrow("safe URL");
+
+    for (const href of [
+      "//attacker.test/path",
+      "/\\attacker.test/path",
+      "https://user:secret@example.test/",
+      "https://example.test/\npath",
+      "data:text/html,<script>alert(1)</script>",
+    ]) {
+      expect(() =>
+        parseEditorDocument({
+          type: "doc",
+          content: [
+            {
+              type: "paragraph",
+              content: [
+                {
+                  type: "text",
+                  text: "unsafe",
+                  marks: [{ type: "link", attrs: { href } }],
+                },
+              ],
+            },
+          ],
+        }),
+      ).toThrow("safe URL");
+    }
+  });
+
+  it("bounds complete document depth, node count, and text", () => {
+    let nested: Record<string, unknown> = { type: "paragraph" };
+    for (let depth = 0; depth < 34; depth += 1) {
+      nested = { type: "blockquote", content: [nested] };
+    }
+    expect(() =>
+      parseEditorDocument({ type: "doc", content: [nested] }),
+    ).toThrow("nesting limit");
+
+    expect(() =>
+      parseEditorDocument({
+        type: "doc",
+        content: [
+          {
+            type: "paragraph",
+            content: [{ type: "text", text: "x".repeat(1_000_001) }],
+          },
+          {
+            type: "paragraph",
+            content: [{ type: "text", text: "y".repeat(1_000_000) }],
+          },
+        ],
+      }),
+    ).toThrow("text limit");
+  });
+
+  it("escapes stored markup and active attributes in derived HTML", () => {
+    const derived = deriveEditorDocument({
+      type: "doc",
+      content: [
+        {
+          type: "paragraph",
+          content: [
+            {
+              type: "text",
+              text: '<img src=x onerror="document.body.dataset.pwned=1">',
+            },
+          ],
+        },
+      ],
+    });
+    expect(derived.sanitizedHtml).toContain("&lt;img src=x onerror=");
+    expect(derived.sanitizedHtml).not.toContain("<img");
   });
 
   it("provides a valid empty document", () => {

@@ -96,7 +96,7 @@ export function createEditorExtensions({
   ];
 }
 
-function mentionText(
+export function mentionText(
   attributes: Record<string, unknown>,
   targets: Map<string, MentionTarget>,
 ): string {
@@ -108,7 +108,7 @@ function mentionText(
   return `@${title}`;
 }
 
-function mentionAriaLabel(
+export function mentionAriaLabel(
   title: string,
   state: MentionTarget["state"],
 ): string {

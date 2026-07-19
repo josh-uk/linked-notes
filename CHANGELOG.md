@@ -48,3 +48,14 @@ All notable changes to Linked Notes will be documented in this file. The format 
   deterministic attachment paths, per-file and manifest SHA-256, strict archive
   limits and traversal/bomb defenses, transactional merge/replace restore,
   collision-safe durable-link remapping, and automatic replace safety backups.
+- Per-request-nonce production CSP, restrictive browser headers, startup
+  environment/storage/schema checks, redacted unknown-error handling, and
+  aggregate editor depth/node/text limits.
+- Keyset-paginated backlinks with a composite index, a bounded 100-mention PDF
+  page and truncation notice, plus reproducible search/list/link/save timings over
+  10,000 notes and bounded-memory evidence for a 96 MiB upload.
+- WCAG 2.2 AA automation in light and dark desktop themes, responsive overflow
+  and reduced-motion checks, safe-first keyboard-trapped dialogs, focus
+  restoration, and corrected primary/danger colour contrast.
+- Full-history Gitleaks, high-severity dependency audit, CodeQL, exact-runner
+  Trivy image scanning, and a direct PDF-renderer SSRF regression.

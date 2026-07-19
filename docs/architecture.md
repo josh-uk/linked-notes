@@ -14,7 +14,12 @@ PostgreSQL named volume
 
 React Server Components are the default rendering model. Client components are reserved for editor and interaction state. Server mutations validate boundary input with Zod, use Prisma transactions where records must change together, and return typed domain errors. Server-only modules remain under `src/server`.
 
-Note content is versioned Tiptap JSON. Derived plain text supports excerpts and search; sanitised HTML supports safe rendering and export. Immutable note UUIDs are embedded in mention nodes and mirrored into a normalised link table so titles may change without changing identity.
+Note content is versioned Tiptap JSON. A server-only pure renderer first enforces
+aggregate document limits, then escapes every text/attribute value and emits the
+supported node/mark subset; a second `sanitize-html` pass produces safe HTML for
+rendering and export. Derived plain text supports excerpts and search. Immutable
+note UUIDs are embedded in mention nodes and mirrored into a normalised link
+table so titles may change without changing identity.
 
 ## Note write path
 
@@ -61,7 +66,9 @@ still cascades its outbound rows.
 Suggestion search excludes archived and trashed notes and ranks title prefixes
 before partial matches, then by recency, in PostgreSQL before applying the
 ten-result limit. The client debounces and cancels searches. Backlinks load only
-when their panel is expanded and group every bounded context by source note.
+when their panel is expanded, use opaque keyset cursors in pages of 50 mentions,
+and group bounded contexts by source note. PDF exports take at most the first 100
+mentions and print an explicit truncation notice when additional pages exist.
 
 The `20260719182000_durable_links` migration backfills `targetKey` from the
 previous required target foreign key before making the live key nullable and
@@ -142,6 +149,19 @@ a dedicated self-contained print page. Safe local raster attachment bytes become
 bounded data URLs. A serial headless-Chromium renderer disables JavaScript and
 service workers, aborts every non-`data:`/`blob:` request, applies fixed A4 CSS,
 and normalizes generated PDF dates and IDs for deterministic bytes.
+
+## Runtime hardening
+
+The request proxy creates a fresh CSP nonce for each HTML response. Production
+scripts and styles are nonce-bound, `eval`, frames, objects, base overrides, and
+cross-origin connections are denied, and global headers disable sniffing,
+framing, referrers, unnecessary browser features, and cross-origin opener or
+resource sharing. Startup instrumentation validates parsed environment values,
+attachment-directory writability, and schema metadata before readiness. The
+application maps unexpected failures to stable public messages and logs only
+error classes or opaque operational identifiers. The production runner executes
+as UID 1001 with a read-only root, bounded temporary storage, no npm/npx tooling,
+and loopback-only port publication. See the [security audit](security-audit.md).
 
 Full backup generation captures a repeatable-read PostgreSQL snapshot, writes a
 strict versioned manifest, and streams checksum-verified attachment bytes into a

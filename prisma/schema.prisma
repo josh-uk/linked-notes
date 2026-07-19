@@ -29,7 +29,7 @@ model Note {
 
   @@index([folderId, updatedAt(sort: Desc)])
   @@index([pinnedAt, updatedAt(sort: Desc)])
-  @@index([archivedAt, trashedAt, updatedAt(sort: Desc)])
+  @@index([archivedAt, trashedAt, updatedAt(sort: Desc), id(sort: Desc)])
 }
 
 model Folder {
@@ -80,7 +80,7 @@ model NoteLink {
 
   @@id([sourceNoteId, mentionId])
   @@index([targetNoteId, updatedAt(sort: Desc)])
-  @@index([targetKey, updatedAt(sort: Desc)])
+  @@index([targetKey, updatedAt(sort: Desc), sourceNoteId, mentionId])
   @@index([sourceNoteId, targetNoteId])
 }
 

@@ -15,12 +15,14 @@ export function BacklinksPanel({ noteId, onOpenNote }: BacklinksPanelProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  async function loadBacklinks() {
+  async function loadBacklinks(cursor?: string) {
     if (loading) return;
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch(`/api/notes/${noteId}/backlinks`, {
+      const search = new URLSearchParams({ limit: "50" });
+      if (cursor) search.set("cursor", cursor);
+      const response = await fetch(`/api/notes/${noteId}/backlinks?${search}`, {
         cache: "no-store",
       });
       const payload = (await response.json()) as BacklinksResponse | ApiError;
@@ -31,7 +33,9 @@ export function BacklinksPanel({ noteId, onOpenNote }: BacklinksPanelProps) {
             : "Backlinks could not be loaded",
         );
       }
-      setBacklinks(payload);
+      setBacklinks((current) =>
+        cursor && current ? mergeBacklinkPages(current, payload) : payload,
+      );
     } catch (loadError) {
       setError(
         loadError instanceof Error
@@ -101,7 +105,39 @@ export function BacklinksPanel({ noteId, onOpenNote }: BacklinksPanelProps) {
             </ul>
           </article>
         ))}
+        {backlinks?.nextCursor ? (
+          <button
+            type="button"
+            className="load-more-button"
+            disabled={loading}
+            onClick={() => void loadBacklinks(backlinks.nextCursor!)}
+          >
+            {loading ? "Loading…" : "Load more backlinks"}
+          </button>
+        ) : null}
       </div>
     </details>
   );
+}
+
+function mergeBacklinkPages(
+  current: BacklinksResponse,
+  next: BacklinksResponse,
+): BacklinksResponse {
+  const items = current.items.map((item) => ({
+    ...item,
+    contexts: [...item.contexts],
+  }));
+  for (const incoming of next.items) {
+    const existing = items.find(
+      ({ sourceNoteId }) => sourceNoteId === incoming.sourceNoteId,
+    );
+    if (existing) existing.contexts.push(...incoming.contexts);
+    else items.push(incoming);
+  }
+  return {
+    items,
+    totalMentions: next.totalMentions,
+    nextCursor: next.nextCursor,
+  };
 }
