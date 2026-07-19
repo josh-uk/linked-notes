@@ -23,6 +23,7 @@ const allowedNodeTypes = new Set([
   "horizontalRule",
   "codeBlock",
   "hardBreak",
+  "mention",
 ]);
 
 const allowedMarkTypes = new Set([
@@ -117,6 +118,36 @@ const nodeSchema: z.ZodType<EditorNode> = z.lazy(() =>
           message: "Task items require a checked state",
         });
       }
+
+      if (node.type === "mention") {
+        if (!z.string().uuid().safeParse(node.attrs?.id).success) {
+          context.addIssue({
+            code: "custom",
+            message: "Mention nodes require an immutable target ID",
+          });
+        }
+        if (!z.string().uuid().safeParse(node.attrs?.mentionId).success) {
+          context.addIssue({
+            code: "custom",
+            message: "Mention nodes require a unique mention instance ID",
+          });
+        }
+        if (
+          typeof node.attrs?.label !== "string" ||
+          node.attrs.label.length > 500
+        ) {
+          context.addIssue({
+            code: "custom",
+            message: "Mention nodes require a bounded fallback label",
+          });
+        }
+        if (node.content?.length) {
+          context.addIssue({
+            code: "custom",
+            message: "Mention nodes cannot contain child content",
+          });
+        }
+      }
     }),
 );
 
@@ -128,8 +159,30 @@ export const editorDocumentSchema = nodeSchema.superRefine(
         message: "Editor content must start with a doc node",
       });
     }
+
+    const mentionIds = new Set<string>();
+    visitEditorNodes(document, (node) => {
+      if (node.type !== "mention") return;
+      const mentionId = node.attrs?.mentionId;
+      if (typeof mentionId !== "string") return;
+      if (mentionIds.has(mentionId)) {
+        context.addIssue({
+          code: "custom",
+          message: "Mention instance IDs must be unique within a note",
+        });
+      }
+      mentionIds.add(mentionId);
+    });
   },
 );
+
+function visitEditorNodes(
+  node: EditorNode,
+  visitor: (node: EditorNode) => void,
+) {
+  visitor(node);
+  for (const child of node.content ?? []) visitEditorNodes(child, visitor);
+}
 
 export function parseEditorDocument(value: unknown): EditorDocument {
   return editorDocumentSchema.parse(value) as EditorDocument;

@@ -229,10 +229,12 @@ export function NoteWorkspace() {
         </section>
       ) : selectedNote ? (
         <NoteEditor
+          key={selectedNote.id}
           ref={editorRef}
           note={selectedNote}
           onSaved={handleSaved}
           onLifecycle={handleLifecycle}
+          onOpenLinkedNote={(noteId) => void selectNote(noteId)}
           onBack={() => setMobileView("list")}
         />
       ) : (
