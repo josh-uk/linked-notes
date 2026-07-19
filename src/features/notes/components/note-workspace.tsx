@@ -125,9 +125,10 @@ export function NoteWorkspace() {
   });
 
   async function createNote() {
+    if (creating || loading || editorLoading) return;
     const flushed =
       (await editorRef.current?.flush().catch(() => false)) ?? true;
-    if (creating || !flushed) return;
+    if (!flushed) return;
     setCreating(true);
     try {
       const response = await fetch("/api/notes", {
@@ -210,6 +211,7 @@ export function NoteWorkspace() {
         activeNoteId={selectedNote?.id ?? null}
         loading={loading}
         loadingMore={loadingMore}
+        createDisabled={loading || editorLoading || creating}
         nextCursor={nextCursor}
         error={listError}
         onSelect={(id) => void selectNote(id)}
@@ -252,6 +254,7 @@ export function NoteWorkspace() {
             <button
               type="button"
               className="new-note-button large"
+              disabled={loading || editorLoading || creating}
               onClick={() => void createNote()}
             >
               Create a new note
