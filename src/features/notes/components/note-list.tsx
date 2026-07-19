@@ -44,6 +44,7 @@ type NoteListProps = {
   createDisabled: boolean;
   nextCursor: string | null;
   error: string | null;
+  onRetry: () => void;
   onSelect: (id: string) => void;
   onCreate: () => void;
   onQueryChange: (value: string) => void;
@@ -84,6 +85,7 @@ export function NoteList({
   createDisabled,
   nextCursor,
   error,
+  onRetry,
   onSelect,
   onCreate,
   onQueryChange,
@@ -380,6 +382,9 @@ export function NoteList({
           <div className="list-state error-state" role="alert">
             <strong>Notes could not be loaded</strong>
             <span>{error}</span>
+            <button type="button" onClick={onRetry}>
+              Retry
+            </button>
           </div>
         ) : null}
 

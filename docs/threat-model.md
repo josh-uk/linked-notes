@@ -12,7 +12,18 @@ Linked Notes protects one local user's notes and attachments from accidental los
 
 ## Baseline controls
 
-Boundary data is schema-validated; rich text and URLs are sanitised; database access is parameterised through Prisma; filenames never become storage paths; downloads disable MIME sniffing; destructive operations require confirmation; optimistic versions prevent silent overwrites; logs exclude note bodies and attachment bytes. Mention suggestions and contexts are inserted into the DOM as text rather than HTML, mention attributes require UUIDs and bounded fallback labels, and duplicate mention-instance IDs are rejected. Link-index reconciliation shares the note-save transaction, preventing a rejected stale write from corrupting backlinks. Permanent deletion requires a trashed note and matching optimistic version, while inbound references retain only non-secret IDs, fallback labels, and bounded source context.
+Boundary data is schema-validated; rich text and URLs are sanitised; complete
+editor documents have aggregate depth, node, and text limits; database access is
+parameterised through Prisma; filenames never become storage paths; downloads
+disable MIME sniffing; destructive operations require confirmation; optimistic
+versions prevent silent overwrites; logs exclude note bodies and attachment
+bytes. Mention suggestions and contexts are inserted into the DOM as text rather
+than HTML, mention attributes require UUIDs and bounded fallback labels, and
+duplicate mention-instance IDs are rejected. Link-index reconciliation shares
+the note-save transaction, preventing a rejected stale write from corrupting
+backlinks. Permanent deletion requires a trashed note and matching optimistic
+version, while inbound references retain only non-secret IDs, fallback labels,
+and bounded source context.
 
 The Compose port binds to loopback and its application network has no outbound route.
 
@@ -59,7 +70,10 @@ of producing a document with externally retrieved content.
 The database and application share an internal-only backend network. Each also
 joins a frontend bridge so Docker Desktop can publish loopback-bound application
 and development-database ports; neither port binds to the LAN by default, and
-application code makes no external runtime requests. Phase 6 expands validation
-of CSP, stored-XSS and unsafe-scheme cases, logging, keyboard safety, explicit
-egress controls where practical, and scanning evidence; archive traversal/bomb
-controls and print-renderer network denial are already enforced by Phase 5.
+application code makes no external runtime requests. Production pages use a
+per-request-nonce CSP plus restrictive browser headers, startup checks validate
+environment/storage/schema assumptions, and full-history secret scanning,
+dependency audit, CodeQL, and exact-runner image scanning gate delivery. Direct
+regressions cover stored XSS, unsafe schemes, private-error redaction, and PDF
+network denial. See the [security and privacy audit](security-audit.md) for the
+test matrix, logging review, scanner policy, and remaining trust assumptions.

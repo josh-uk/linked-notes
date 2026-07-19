@@ -25,7 +25,9 @@ RUN apk add --no-cache chromium ca-certificates \
     && addgroup --system --gid 1001 nodejs \
     && adduser --system --uid 1001 --ingroup nodejs --home /app nextjs \
     && mkdir -p /data/attachments \
-    && chown -R nextjs:nodejs /data/attachments
+    && chown -R nextjs:nodejs /data/attachments \
+    && rm -rf /usr/local/lib/node_modules/npm \
+    && rm -f /usr/local/bin/npm /usr/local/bin/npx
 COPY --from=builder --chown=nextjs:nodejs /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static

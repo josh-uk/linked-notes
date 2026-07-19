@@ -69,4 +69,43 @@ describe("PDF print renderer", () => {
     expect(html).not.toContain('src="https://');
     expect(html).not.toContain('onerror="alert(1)');
   });
+
+  it("labels a bounded backlink page when more mentions remain", () => {
+    const html = buildNotePrintHtml({
+      note: {
+        id: "11111111-1111-4111-8111-111111111111",
+        title: "Bounded export",
+        content: { type: "doc", content: [{ type: "paragraph" }] },
+        createdAt: new Date("2026-07-19T10:00:00.000Z"),
+        updatedAt: new Date("2026-07-19T11:00:00.000Z"),
+        folderName: null,
+        tags: [],
+      },
+      mentionTargets: [],
+      attachments: [],
+      backlinks: {
+        items: [
+          {
+            sourceNoteId: "22222222-2222-4222-8222-222222222222",
+            sourceTitle: "Source <unsafe>",
+            sourceState: "active",
+            sourceUpdatedAt: "2026-07-19T11:00:00.000Z",
+            contexts: [
+              {
+                mentionId: "33333333-3333-4333-8333-333333333333",
+                context: "Escaped <context>",
+              },
+            ],
+          },
+        ],
+        totalMentions: 125,
+        nextCursor: "opaque-cursor",
+      },
+    });
+
+    expect(html).toContain("Showing the first 1 of 125 backlink mentions");
+    expect(html).toContain("Source &lt;unsafe&gt;");
+    expect(html).toContain("Escaped &lt;context&gt;");
+    expect(html).not.toContain("<unsafe>");
+  });
 });
