@@ -4,7 +4,9 @@ import { ZodError } from "zod";
 import { NoteDomainError } from "@/server/notes/note-errors";
 import {
   applyNoteLifecycle,
+  deleteNotePermanently,
   lifecycleInputSchema,
+  permanentDeleteInputSchema,
 } from "@/server/notes/note-service";
 
 type NoteRouteContext = { params: Promise<{ noteId: string }> };
@@ -12,7 +14,12 @@ type NoteRouteContext = { params: Promise<{ noteId: string }> };
 export async function POST(request: NextRequest, context: NoteRouteContext) {
   try {
     const { noteId } = await context.params;
-    const input = lifecycleInputSchema.parse(await request.json());
+    const value = (await request.json()) as { action?: unknown };
+    if (value.action === "delete") {
+      const input = permanentDeleteInputSchema.parse(value);
+      return NextResponse.json(await deleteNotePermanently(noteId, input));
+    }
+    const input = lifecycleInputSchema.parse(value);
     return NextResponse.json(await applyNoteLifecycle(noteId, input));
   } catch (error) {
     if (error instanceof NoteDomainError) {

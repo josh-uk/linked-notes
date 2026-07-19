@@ -88,4 +88,29 @@ describe("editor documents", () => {
       EMPTY_EDITOR_DOCUMENT,
     );
   });
+
+  it("keeps unresolved durable mentions as neutral fallback links", () => {
+    const derived = deriveEditorDocument({
+      type: "doc",
+      content: [
+        {
+          type: "paragraph",
+          content: [
+            {
+              type: "mention",
+              attrs: {
+                id: "346cc6c4-7f53-4a0c-9349-f76a6fdbcc2c",
+                mentionId: "52a87d87-7ea7-45af-bc6d-bc6a754048d5",
+                label: "Immutable fallback",
+              },
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(derived.plainText).toBe("@Immutable fallback");
+    expect(derived.sanitizedHtml).toContain('data-state="active"');
+    expect(derived.sanitizedHtml).not.toContain("missing");
+  });
 });

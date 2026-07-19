@@ -14,6 +14,8 @@ import {
 } from "lucide-react";
 import {
   forwardRef,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type MouseEvent as ReactMouseEvent,
   useCallback,
   useEffect,
   useImperativeHandle,
@@ -30,6 +32,7 @@ import type {
   NoteLifecycleAction,
 } from "../types";
 import { EditorToolbar } from "./editor-toolbar";
+import { BacklinksPanel } from "./backlinks-panel";
 
 type SaveState = "saved" | "unsaved" | "saving" | "error" | "conflict";
 
@@ -46,11 +49,15 @@ type NoteEditorProps = {
   note: NoteDetail;
   onSaved: (note: NoteDetail) => void;
   onLifecycle: (note: NoteDetail, action: NoteLifecycleAction) => void;
+  onOpenLinkedNote: (noteId: string) => void;
   onBack: () => void;
 };
 
 export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
-  function NoteEditor({ note, onSaved, onLifecycle, onBack }, ref) {
+  function NoteEditor(
+    { note, onSaved, onLifecycle, onOpenLinkedNote, onBack },
+    ref,
+  ) {
     const [title, setTitle] = useState(note.title);
     const [saveState, setSaveState] = useState<SaveState>("saved");
     const [saveMessage, setSaveMessage] = useState<string | null>(null);
@@ -90,7 +97,12 @@ export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
     );
 
     const editor = useEditor({
-      extensions: createEditorExtensions(),
+      extensions: createEditorExtensions({
+        mention: {
+          currentNoteId: note.id,
+          targets: note.mentionTargets,
+        },
+      }),
       content: note.content,
       immediatelyRender: false,
       editorProps: {
@@ -320,6 +332,26 @@ export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
       void flushRef.current();
     }
 
+    function openMention(target: EventTarget | null) {
+      if (!(target instanceof Element)) return;
+      const mention = target.closest<HTMLElement>(".note-mention");
+      if (!mention || mention.dataset.state === "missing") return;
+      const targetId = mention.dataset.noteTarget;
+      if (targetId) onOpenLinkedNote(targetId);
+    }
+
+    function onEditorClick(event: ReactMouseEvent<HTMLDivElement>) {
+      openMention(event.target);
+    }
+
+    function onEditorKeyDown(event: ReactKeyboardEvent<HTMLDivElement>) {
+      if (event.key !== "Enter" && event.key !== " ") return;
+      if (!(event.target instanceof Element)) return;
+      if (!event.target.closest(".note-mention")) return;
+      event.preventDefault();
+      openMention(event.target);
+    }
+
     return (
       <section className="editor-pane" aria-labelledby="note-title-label">
         <header className="editor-header">
@@ -461,8 +493,13 @@ export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
         </div>
 
         <EditorToolbar editor={editor} />
-        <div className="editor-scroll-area">
+        <div
+          className="editor-scroll-area"
+          onClick={onEditorClick}
+          onKeyDown={onEditorKeyDown}
+        >
           <EditorContent editor={editor} />
+          <BacklinksPanel noteId={note.id} onOpenNote={onOpenLinkedNote} />
         </div>
       </section>
     );

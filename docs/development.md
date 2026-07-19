@@ -28,8 +28,11 @@ Tests must use deterministic fixtures and observable readiness conditions, not a
 The integration suite exercises the note service against real PostgreSQL. The
 browser suite covers note creation and reload, autosave, pin/trash/restore,
 optimistic conflicts, keyboard creation, mobile pane navigation, theming, and Axe
-accessibility checks. To run browser tests against an already-running development
-server, set `PLAYWRIGHT_EXTERNAL_SERVER=1` and `PLAYWRIGHT_BASE_URL`.
+accessibility checks. It also covers keyboard and pointer mention selection,
+loading/empty/error/self-link suggestions, rename-safe display, contextual
+backlinks, lifecycle states, permanent-target deletion, broken references, and
+link removal. To run browser tests against an already-running development server,
+set `PLAYWRIGHT_EXTERNAL_SERVER=1` and `PLAYWRIGHT_BASE_URL`.
 
 For example, when the default ports are already occupied:
 
@@ -43,6 +46,11 @@ PLAYWRIGHT_EXTERNAL_SERVER=1 PLAYWRIGHT_BASE_URL=http://127.0.0.1:3100 npm run t
 ## Database changes
 
 Edit `prisma/schema.prisma`, run `npm run prisma:migrate -- --name <short-name>` against a disposable development database, inspect the generated SQL, and commit both schema and migration. Production runs `prisma migrate deploy` in a one-shot Compose service; a failed migration prevents the app from starting.
+
+Durable-link schema changes must preserve both identities: `targetKey` is the
+immutable backlink key and `targetNoteId` is only the nullable live relation.
+Migration tests should cover rename, lifecycle state, target deletion, multiple
+mentions, and removal during a successful optimistic save.
 
 ## Dependency pins
 

@@ -7,6 +7,7 @@ import {
 } from "@/features/notes/document-schema";
 import type {
   EditorDocument,
+  MentionTarget,
   NoteDetail,
   NoteLifecycleAction,
   NoteSummary,
@@ -17,6 +18,7 @@ import { prisma } from "@/server/db";
 
 import { deriveEditorDocument } from "./derive-document";
 import { NoteDomainError } from "./note-errors";
+import { reconcileNoteLinks, resolveMentionTargets } from "./note-links";
 
 const noteIdSchema = z.string().uuid();
 const cursorSchema = z.string().uuid();
@@ -37,6 +39,10 @@ export const updateNoteInputSchema = z
 
 export const lifecycleInputSchema = z.object({
   action: z.enum(["pin", "unpin", "trash", "restore"]),
+  expectedVersion: z.number().int().positive(),
+});
+
+export const permanentDeleteInputSchema = z.object({
   expectedVersion: z.number().int().positive(),
 });
 
@@ -93,14 +99,17 @@ export async function createNote(value: unknown): Promise<NoteDetail> {
     },
   });
 
-  return serializeDetail(note);
+  return serializeDetail(note, []);
 }
 
 export async function getNote(id: string): Promise<NoteDetail> {
   noteIdSchema.parse(id);
   const note = await prisma.note.findUnique({ where: { id } });
   if (!note) throw new NoteDomainError("NOTE_NOT_FOUND", "Note not found", 404);
-  return serializeDetail(note);
+  return serializeDetail(
+    note,
+    await resolveMentionTargets(prisma, note.content as EditorDocument),
+  );
 }
 
 export async function updateNote(
@@ -134,8 +143,14 @@ export async function updateNote(
     });
 
     if (update.count === 0) await throwMissingOrConflict(transaction, id);
+    if (derived) {
+      await reconcileNoteLinks(transaction, id, derived.content);
+    }
     const note = await transaction.note.findUniqueOrThrow({ where: { id } });
-    return serializeDetail(note);
+    return serializeDetail(
+      note,
+      await resolveMentionTargets(transaction, note.content as EditorDocument),
+    );
   });
 }
 
@@ -160,9 +175,52 @@ export async function applyNoteLifecycle(
       data,
     });
     if (update.count === 0) await throwMissingOrConflict(transaction, id);
+    const note = await transaction.note.findUniqueOrThrow({ where: { id } });
     return serializeDetail(
-      await transaction.note.findUniqueOrThrow({ where: { id } }),
+      note,
+      await resolveMentionTargets(transaction, note.content as EditorDocument),
     );
+  });
+}
+
+export async function deleteNotePermanently(
+  id: string,
+  value: unknown,
+): Promise<{ id: string; deleted: true }> {
+  noteIdSchema.parse(id);
+  const input = permanentDeleteInputSchema.parse(value);
+
+  return prisma.$transaction(async (transaction) => {
+    const deleted = await transaction.note.deleteMany({
+      where: {
+        id,
+        optimisticVersion: input.expectedVersion,
+        trashedAt: { not: null },
+      },
+    });
+    if (deleted.count === 1) return { id, deleted: true as const };
+
+    const current = await transaction.note.findUnique({ where: { id } });
+    if (!current)
+      throw new NoteDomainError("NOTE_NOT_FOUND", "Note not found", 404);
+    if (current.trashedAt === null) {
+      throw new NoteDomainError(
+        "NOTE_NOT_TRASHED",
+        "Only a trashed note can be permanently deleted",
+        409,
+        {
+          current: serializeDetail(
+            current,
+            await resolveMentionTargets(
+              transaction,
+              current.content as EditorDocument,
+            ),
+          ),
+        },
+      );
+    }
+    await throwMissingOrConflict(transaction, id);
+    throw new Error("Unreachable permanent-delete state");
   });
 }
 
@@ -178,7 +236,13 @@ async function throwMissingOrConflict(
     "The note changed in another editor",
     409,
     {
-      current: serializeDetail(current),
+      current: serializeDetail(
+        current,
+        await resolveMentionTargets(
+          transaction,
+          current.content as EditorDocument,
+        ),
+      ),
     },
   );
 }
@@ -211,11 +275,15 @@ function serializeSummary(note: SummaryRecord): NoteSummary {
   };
 }
 
-function serializeDetail(note: Note): NoteDetail {
+function serializeDetail(
+  note: Note,
+  mentionTargets: MentionTarget[],
+): NoteDetail {
   return {
     ...serializeSummary(note),
     content: note.content as EditorDocument,
     contentSchema: note.contentSchema,
+    mentionTargets,
   };
 }
 

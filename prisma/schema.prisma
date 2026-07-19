@@ -69,16 +69,18 @@ model NoteTag {
 
 model NoteLink {
   sourceNoteId String   @db.Uuid
-  targetNoteId String   @db.Uuid
+  targetNoteId String?  @db.Uuid
+  targetKey    String   @db.Uuid
   mentionId    String   @db.Uuid
   context      String?  @db.VarChar(500)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
   sourceNote   Note     @relation("SourceNote", fields: [sourceNoteId], references: [id], onDelete: Cascade)
-  targetNote   Note     @relation("TargetNote", fields: [targetNoteId], references: [id], onDelete: Restrict)
+  targetNote   Note?    @relation("TargetNote", fields: [targetNoteId], references: [id], onDelete: SetNull)
 
   @@id([sourceNoteId, mentionId])
   @@index([targetNoteId, updatedAt(sort: Desc)])
+  @@index([targetKey, updatedAt(sort: Desc)])
   @@index([sourceNoteId, targetNoteId])
 }
 

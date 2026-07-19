@@ -794,6 +794,187 @@ button:disabled {
   text-underline-offset: 0.16em;
 }
 
+.note-mention {
+  display: inline-flex;
+  align-items: baseline;
+  padding: 0.08em 0.38em;
+  border: 1px solid color-mix(in srgb, var(--accent) 24%, var(--line));
+  border-radius: 0.42em;
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+  font-family:
+    ui-rounded,
+    "SF Pro Rounded",
+    -apple-system,
+    BlinkMacSystemFont,
+    sans-serif;
+  font-size: 0.88em;
+  font-weight: 670;
+  line-height: 1.35;
+  cursor: pointer;
+}
+
+.note-mention.is-trashed,
+.note-mention.is-archived {
+  border-style: dashed;
+  background: var(--sidebar);
+  color: var(--muted);
+}
+
+.note-mention.is-missing {
+  border-color: color-mix(in srgb, var(--danger) 40%, var(--line));
+  background: var(--danger-soft);
+  color: var(--danger);
+  cursor: not-allowed;
+}
+
+.mention-suggestions {
+  z-index: 30;
+  width: min(22rem, calc(100vw - 1.5rem));
+  max-height: 20rem;
+  overflow: auto;
+  padding: 0.35rem;
+  border: 1px solid var(--line-strong);
+  border-radius: 0.9rem;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  color: var(--ink);
+}
+
+.mention-suggestion-option {
+  width: 100%;
+  display: grid;
+  gap: 0.22rem;
+  padding: 0.68rem 0.72rem;
+  border: 0;
+  border-radius: 0.65rem;
+  background: transparent;
+  color: var(--ink);
+  text-align: left;
+}
+
+.mention-suggestion-option[aria-selected="true"],
+.mention-suggestion-option:hover {
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+}
+
+.mention-suggestion-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.mention-suggestion-title small,
+.backlink-source small {
+  padding: 0.14rem 0.35rem;
+  border-radius: 999px;
+  background: var(--sidebar);
+  color: var(--subtle);
+  font-size: 0.58rem;
+  font-weight: 760;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.mention-suggestion-excerpt {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 0.76rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mention-suggestion-state {
+  padding: 0.8rem;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.backlinks-panel {
+  width: min(47rem, calc(100% - 2rem));
+  margin: 0 auto 6rem;
+  border-top: 1px solid var(--line);
+}
+
+.backlinks-panel summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.9rem 0.2rem;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 0.8rem;
+  font-weight: 700;
+  list-style: none;
+}
+
+.backlinks-panel summary::-webkit-details-marker {
+  display: none;
+}
+
+.backlinks-panel summary span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.backlinks-chevron {
+  transition: transform 140ms ease;
+}
+
+.backlinks-panel[open] .backlinks-chevron {
+  transform: rotate(180deg);
+}
+
+.backlinks-content {
+  display: grid;
+  gap: 0.6rem;
+  padding-bottom: 1rem;
+}
+
+.backlinks-state {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.75rem;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.backlink-card {
+  padding: 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: 0.75rem;
+  background: color-mix(in srgb, var(--surface) 68%, transparent);
+}
+
+.backlink-source {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--accent-ink);
+  text-align: left;
+}
+
+.backlink-card ul {
+  display: grid;
+  gap: 0.35rem;
+  margin: 0.55rem 0 0;
+  padding: 0;
+  color: var(--muted);
+  font-family: ui-serif, "New York", Charter, Georgia, serif;
+  font-size: 0.78rem;
+  line-height: 1.5;
+  list-style: none;
+}
+
 .note-prose hr {
   margin: 1.8rem 0;
   border: 0;

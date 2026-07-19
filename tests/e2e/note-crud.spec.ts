@@ -53,38 +53,51 @@ test("preserves a local draft when optimistic concurrency detects a stale save",
 }) => {
   const originalTitle = `Conflict note ${Date.now()}`;
   await page.goto("/");
+  const createdResponse = page.waitForResponse(
+    (response) =>
+      response.url().endsWith("/api/notes") &&
+      response.request().method() === "POST" &&
+      response.status() === 201,
+  );
   await page.getByRole("button", { name: "Create a new note" }).first().click();
+  const created = (await (await createdResponse).json()) as { id: string };
   await page.getByRole("textbox", { name: "Note title" }).fill(originalTitle);
   await expect(
     page.getByRole("status").filter({ hasText: "Unsaved changes" }),
   ).toBeVisible();
   await page.getByRole("textbox", { name: "Note content" }).click();
   await page.keyboard.type("Original text");
-  await expect(
-    page.getByRole("status").filter({ hasText: "Saved" }),
-  ).toBeVisible();
+  await expect
+    .poll(async () => {
+      const response = await page.request.get(`/api/notes/${created.id}`);
+      return JSON.stringify(await response.json());
+    })
+    .toContain("Original text");
 
-  const pageResponse = await page.request.get("/api/notes?view=all&limit=100");
-  const notes = (await pageResponse.json()) as {
-    items: Array<{ id: string; title: string; optimisticVersion: number }>;
-  };
-  const note = notes.items.find(({ title }) => title === originalTitle)!;
-  const detailResponse = await page.request.get(`/api/notes/${note.id}`);
+  const detailResponse = await page.request.get(`/api/notes/${created.id}`);
   const detail = (await detailResponse.json()) as {
     content: unknown;
     optimisticVersion: number;
   };
-  await page.request.patch(`/api/notes/${note.id}`, {
+  const remoteSave = await page.request.patch(`/api/notes/${created.id}`, {
     data: {
       expectedVersion: detail.optimisticVersion,
       title: "Remote title",
       content: detail.content,
     },
   });
+  expect(remoteSave.status()).toBe(200);
 
+  const conflictResponse = page.waitForResponse(
+    (response) =>
+      response.url().endsWith(`/api/notes/${created.id}`) &&
+      response.request().method() === "PATCH" &&
+      response.status() === 409,
+  );
   await page
     .getByRole("textbox", { name: "Note title" })
     .fill("My preserved local draft");
+  await conflictResponse;
   await expect(
     page.getByText("This note changed in another editor", { exact: true }),
   ).toBeVisible();
@@ -97,7 +110,7 @@ test("preserves a local draft when optimistic concurrency detects a stale save",
   ).toBeVisible();
 
   const resolved = await (
-    await page.request.get(`/api/notes/${note.id}`)
+    await page.request.get(`/api/notes/${created.id}`)
   ).json();
   expect(resolved.title).toBe("My preserved local draft");
 });
@@ -111,6 +124,9 @@ test("supports keyboard creation and mobile pane navigation", async ({
     "aria-busy",
     "false",
   );
+  await expect(
+    page.getByRole("button", { name: "Create a new note" }).first(),
+  ).toBeEnabled();
   await page.keyboard.press("Control+n");
   await expect(page.getByRole("textbox", { name: "Note title" })).toBeVisible();
   await page
