@@ -1,0 +1,122 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Note {
+  id                String       @id @default(uuid()) @db.Uuid
+  title             String       @default("") @db.VarChar(500)
+  content           Json
+  contentText       String       @default("")
+  contentHtml       String       @default("")
+  contentSchema     Int          @default(1)
+  optimisticVersion Int          @default(1)
+  folderId          String?      @db.Uuid
+  pinnedAt          DateTime?
+  archivedAt        DateTime?
+  trashedAt         DateTime?
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+  folder            Folder?      @relation(fields: [folderId], references: [id], onDelete: SetNull)
+  tags              NoteTag[]
+  outboundLinks     NoteLink[]   @relation("SourceNote")
+  inboundLinks      NoteLink[]   @relation("TargetNote")
+  attachments       Attachment[]
+
+  @@index([folderId, updatedAt(sort: Desc)])
+  @@index([pinnedAt, updatedAt(sort: Desc)])
+  @@index([archivedAt, trashedAt, updatedAt(sort: Desc)])
+}
+
+model Folder {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String   @db.VarChar(200)
+  parentId  String?  @db.Uuid
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  parent    Folder?  @relation("FolderTree", fields: [parentId], references: [id], onDelete: Restrict)
+  children  Folder[] @relation("FolderTree")
+  notes     Note[]
+
+  @@unique([parentId, name])
+  @@index([parentId, sortOrder])
+}
+
+model Tag {
+  id             String    @id @default(uuid()) @db.Uuid
+  normalizedName String    @unique @db.VarChar(100)
+  displayName    String    @db.VarChar(100)
+  color          String?   @db.VarChar(20)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  notes          NoteTag[]
+}
+
+model NoteTag {
+  noteId String @db.Uuid
+  tagId  String @db.Uuid
+  note   Note   @relation(fields: [noteId], references: [id], onDelete: Cascade)
+  tag    Tag    @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([noteId, tagId])
+  @@index([tagId, noteId])
+}
+
+model NoteLink {
+  sourceNoteId String   @db.Uuid
+  targetNoteId String   @db.Uuid
+  mentionId    String   @db.Uuid
+  context      String?  @db.VarChar(500)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  sourceNote   Note     @relation("SourceNote", fields: [sourceNoteId], references: [id], onDelete: Cascade)
+  targetNote   Note     @relation("TargetNote", fields: [targetNoteId], references: [id], onDelete: Restrict)
+
+  @@id([sourceNoteId, mentionId])
+  @@index([targetNoteId, updatedAt(sort: Desc)])
+  @@index([sourceNoteId, targetNoteId])
+}
+
+model Attachment {
+  id              String   @id @default(uuid()) @db.Uuid
+  noteId          String   @db.Uuid
+  originalName    String   @db.VarChar(500)
+  storageName     String   @unique @db.VarChar(100)
+  mimeType        String   @db.VarChar(255)
+  byteSize        BigInt
+  checksumSha256  String   @db.Char(64)
+  width           Int?
+  height          Int?
+  createdAt       DateTime @default(now())
+  note            Note     @relation(fields: [noteId], references: [id], onDelete: Cascade)
+
+  @@index([noteId, createdAt])
+  @@index([checksumSha256])
+}
+
+enum SettingType {
+  STRING
+  NUMBER
+  BOOLEAN
+  JSON
+}
+
+model Setting {
+  key       String      @id @db.VarChar(100)
+  type      SettingType
+  value     Json
+  version   Int         @default(1)
+  updatedAt DateTime    @updatedAt
+}
+
+model SchemaMetadata {
+  id                  Int      @id @default(1)
+  dataSchemaVersion   Int      @default(1)
+  backupSchemaVersion Int      @default(1)
+  updatedAt           DateTime @updatedAt
+}
