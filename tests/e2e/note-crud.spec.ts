@@ -9,7 +9,14 @@ test("creates, autosaves, reloads, pins, trashes, and restores a note", async ({
   const title = `Phase 1 note ${Date.now()}`;
   await page.goto("/");
 
+  const createdResponse = page.waitForResponse(
+    (response) =>
+      response.url().endsWith("/api/notes") &&
+      response.request().method() === "POST" &&
+      response.status() === 201,
+  );
   await page.getByRole("button", { name: "Create a new note" }).first().click();
+  const created = (await (await createdResponse).json()) as { id: string };
   await expect(page.getByRole("textbox", { name: "Note title" })).toBeVisible();
   await page.getByRole("textbox", { name: "Note title" }).fill(title);
   await expect(
@@ -17,6 +24,12 @@ test("creates, autosaves, reloads, pins, trashes, and restores a note", async ({
   ).toBeVisible();
   await page.getByRole("textbox", { name: "Note content" }).click();
   await page.keyboard.type("A calm autosaved thought.");
+  await expect
+    .poll(async () => {
+      const response = await page.request.get(`/api/notes/${created.id}`);
+      return JSON.stringify(await response.json());
+    })
+    .toContain("A calm autosaved thought.");
   await expect(
     page.getByRole("status").filter({ hasText: "Saved" }),
   ).toBeVisible();

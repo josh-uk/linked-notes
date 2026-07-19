@@ -26,6 +26,7 @@ import { listStoredFileNames } from "@/server/attachments/attachment-storage";
 import { NoteDomainError } from "@/server/notes/note-errors";
 import {
   listBacklinks,
+  listBacklinksPage,
   searchMentionSuggestions,
 } from "@/server/notes/note-links";
 import {
@@ -328,6 +329,42 @@ describe("note service", () => {
     expect(
       await prisma.noteLink.count({ where: { sourceNoteId: source.id } }),
     ).toBe(0);
+  });
+
+  it("paginates a large backlink set without duplicates or omissions", async () => {
+    const target = await createNote({ title: "Backlink page target" });
+    const sources = Array.from({ length: 126 }, () => ({
+      id: randomUUID(),
+      title: "Backlink page source",
+      content: EMPTY_EDITOR_DOCUMENT as Prisma.InputJsonValue,
+      contentText: "",
+      contentHtml: "<p></p>",
+    }));
+    await prisma.note.createMany({ data: sources });
+    const links = sources.map((source, index) => ({
+      sourceNoteId: source.id,
+      targetNoteId: target.id,
+      targetKey: target.id,
+      mentionId: randomUUID(),
+      context: `Bounded context ${index}`,
+    }));
+    await prisma.noteLink.createMany({ data: links });
+
+    let cursor: string | undefined;
+    const seen = new Set<string>();
+    do {
+      const page = await listBacklinksPage(target.id, { cursor, limit: 50 });
+      expect(page.totalMentions).toBe(126);
+      for (const item of page.items) {
+        for (const context of item.contexts) seen.add(context.mentionId);
+      }
+      cursor = page.nextCursor ?? undefined;
+    } while (cursor);
+    expect(seen).toEqual(new Set(links.map(({ mentionId }) => mentionId)));
+
+    await expect(
+      listBacklinksPage(target.id, { cursor: "not-a-cursor", limit: 50 }),
+    ).rejects.toMatchObject({ code: "BACKLINK_CURSOR_INVALID", status: 400 });
   });
 
   it("ranks prefix suggestions before partial matches with recency ties", async () => {

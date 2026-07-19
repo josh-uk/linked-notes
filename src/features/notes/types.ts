@@ -79,6 +79,7 @@ export type BacklinkGroup = {
 export type BacklinksResponse = {
   items: BacklinkGroup[];
   totalMentions: number;
+  nextCursor: string | null;
 };
 
 export type NoteFolder = {

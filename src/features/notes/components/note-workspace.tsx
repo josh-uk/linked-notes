@@ -211,6 +211,7 @@ export function NoteWorkspace() {
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
+      if (document.querySelector("dialog[open]")) return;
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "n") {
         event.preventDefault();
         void createNote();
@@ -412,6 +413,7 @@ export function NoteWorkspace() {
         createDisabled={loading || editorLoading || creating}
         nextCursor={nextCursor}
         error={listError}
+        onRetry={() => void fetchPage({ selectFirst: false })}
         onSelect={(id) => void selectNote(id)}
         onCreate={() => void createNote()}
         onQueryChange={(value) => {

@@ -33,7 +33,9 @@ export type PdfExportModel = {
 let rendererQueue: Promise<void> = Promise.resolve();
 
 export function renderNotePdf(model: PdfExportModel) {
-  const work = rendererQueue.then(() => renderPdfNow(model));
+  const work = rendererQueue.then(() =>
+    renderPrintHtmlPdf(buildNotePrintHtml(model)),
+  );
   rendererQueue = work.then(
     () => undefined,
     () => undefined,
@@ -105,7 +107,8 @@ export function buildNotePrintHtml(model: PdfExportModel) {
 </html>`;
 }
 
-async function renderPdfNow(model: PdfExportModel) {
+/** Internal rendering boundary kept public for direct security regression tests. */
+export async function renderPrintHtmlPdf(html: string) {
   let browser;
   let blockedRequests = 0;
   try {
@@ -143,7 +146,7 @@ async function renderPdfNow(model: PdfExportModel) {
       blockedRequests += 1;
       await route.abort("blockedbyclient");
     });
-    await page.setContent(buildNotePrintHtml(model), { waitUntil: "load" });
+    await page.setContent(html, { waitUntil: "load" });
     await page.emulateMedia({ media: "print" });
     const pdf = await page.pdf({
       format: "A4",
@@ -227,7 +230,14 @@ function renderAttachmentSection(attachments: PdfExportAttachment[]) {
 
 function renderBacklinkSection(backlinks: BacklinksResponse | null) {
   if (!backlinks || backlinks.items.length === 0) return "";
-  return `<section class="section"><h2>Backlinks</h2>${backlinks.items
+  const shownMentions = backlinks.items.reduce(
+    (total, item) => total + item.contexts.length,
+    0,
+  );
+  const truncation = backlinks.nextCursor
+    ? `<p>Showing the first ${shownMentions} of ${backlinks.totalMentions} backlink mentions. Open Linked Notes to load the remaining pages.</p>`
+    : "";
+  return `<section class="section"><h2>Backlinks</h2>${truncation}${backlinks.items
     .map(
       (item) =>
         `<article class="backlink"><strong>${escapeHtml(item.sourceTitle)}</strong> <span>(${item.sourceState})</span>${item.contexts
