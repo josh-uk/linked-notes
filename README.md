@@ -70,6 +70,13 @@ Run the baseline quality gate with `npm run check`. See [development documentati
   type remains downloadable. Upload progress, cancellation, retry, explicit
   removal, missing-byte states, and attachment-presence filtering are available
   from the desktop workspace.
+- Export the selected note from its desktop editor header as readable Markdown
+  or a deterministic PDF. PDF exports include local raster attachments, metadata,
+  and optional backlinks without allowing Chromium to fetch network resources.
+- From **Workspace Settings → Portable backup**, download the complete versioned
+  workspace archive or stage and validate one for merge/replace restore. Replace
+  requires typing `REPLACE` and creates a downloadable safety backup before any
+  live data changes.
 - Workspace Settings can verify attachment sizes/checksums and identify missing,
   corrupt, staged, or unreferenced bytes. Automatic repair removes only
   unreferenced bytes; it does not discard missing/corrupt metadata silently.
@@ -82,7 +89,11 @@ target identity and become explicit broken references.
 
 ## Safety and privacy
 
-Linked Notes is single-user software with no authentication. Keep the default loopback binding. Exposing its port to a LAN or the internet exposes the complete workspace to anyone who can reach it. Back up both the database and attachment volume before upgrades.
+Linked Notes is single-user software with no authentication. Keep the default
+loopback binding. Exposing its port to a LAN or the internet exposes the complete
+workspace to anyone who can reach it. Use the full portable backup before
+upgrades and keep a verified copy outside the Docker volumes. See
+[backup, restore, and recovery](docs/backup-format.md).
 
 ## Project documentation
 

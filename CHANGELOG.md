@@ -41,3 +41,10 @@ All notable changes to Linked Notes will be documented in this file. The format 
 - Missing/corrupt/orphan/stale-stage reconciliation, attachment-volume health,
   permanent-note/retention byte cleanup, restart persistence evidence, and a
   reproducible 96 MiB bounded-memory Docker profile.
+- Desktop note export to readable Markdown and deterministic A4 PDF with rich
+  formatting, local checksum-verified raster images, attachment metadata,
+  optional backlinks, and a network-denied Chromium print boundary.
+- Versioned streamed full-workspace backups with canonical manifests,
+  deterministic attachment paths, per-file and manifest SHA-256, strict archive
+  limits and traversal/bomb defenses, transactional merge/replace restore,
+  collision-safe durable-link remapping, and automatic replace safety backups.
