@@ -19,7 +19,13 @@ export type NoteSummary = {
   id: string;
   title: string;
   excerpt: string;
+  titleHighlight?: string;
+  highlight?: string;
+  rank?: number;
   optimisticVersion: number;
+  folder: NoteFolder | null;
+  tags: NoteTag[];
+  attachmentCount: number;
   pinnedAt: string | null;
   archivedAt: string | null;
   trashedAt: string | null;
@@ -75,14 +81,59 @@ export type BacklinksResponse = {
   totalMentions: number;
 };
 
-export type NotesView = "all" | "pinned" | "trash";
+export type NoteFolder = {
+  id: string;
+  name: string;
+};
+
+export type NoteTag = {
+  id: string;
+  displayName: string;
+  color: string | null;
+};
+
+export type FolderSummary = NoteFolder & {
+  parentId: string | null;
+  sortOrder: number;
+  noteCount: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type TagSummary = NoteTag & {
+  normalizedName: string;
+  noteCount: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type OrganizationResponse = {
+  folders: FolderSummary[];
+  tags: TagSummary[];
+  trashRetentionDays: number;
+  maxFolderDepth: number;
+};
+
+export type NotesView = "all" | "pinned" | "archive" | "trash";
+export type NoteSort = "updated" | "created" | "title" | "relevance";
+export type SortDirection = "asc" | "desc";
+export type AttachmentFilter = "any" | "with" | "without";
 
 export type NotesPage = {
   items: NoteSummary[];
   nextCursor: string | null;
 };
 
-export type NoteLifecycleAction = "pin" | "unpin" | "trash" | "restore";
+export type SearchPage = {
+  items: NoteSummary[];
+  nextOffset: number | null;
+};
+
+export type NoteLifecycleAction =
+  "pin" | "unpin" | "archive" | "unarchive" | "trash" | "restore";
+
+export type BulkNoteAction =
+  "pin" | "archive" | "trash" | "restore" | "move" | "tag";
 
 export type ApiError = {
   error: {

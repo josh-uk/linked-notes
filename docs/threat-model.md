@@ -16,4 +16,20 @@ Boundary data is schema-validated; rich text and URLs are sanitised; database ac
 
 The Compose port binds to loopback and its application network has no outbound route.
 
-The database and application share an internal-only backend network. Each also joins a frontend bridge so Docker Desktop can publish loopback-bound application and development-database ports; neither port binds to the LAN by default, and application code makes no external runtime requests. Security work in Phase 6 will add and verify CSP, stored-XSS cases, unsafe-scheme rejection, archive traversal/bomb controls, print-renderer network denial, explicit egress controls where practical, logging review, keyboard safety, and scanning evidence.
+Folder and tag names, search strings, filters, sort choices, bulk selections, and
+retention settings are strictly bounded at the route boundary. Full-text search
+uses Prisma SQL values rather than string interpolation, and highlighted database
+fragments are rendered through a marker parser rather than `innerHTML`. Bulk
+mutations run in one transaction and reject stale versions. Folder deletion and
+permanent note deletion require deliberate UI confirmation; permanent deletion
+is also server-guarded to already-trashed notes. Automatic retention is opt-in,
+defaults to never, and preserves inbound mention identity when it removes an
+expired target.
+
+The database and application share an internal-only backend network. Each also
+joins a frontend bridge so Docker Desktop can publish loopback-bound application
+and development-database ports; neither port binds to the LAN by default, and
+application code makes no external runtime requests. Security work in Phase 6
+will add and verify CSP, stored-XSS cases, unsafe-scheme rejection, archive
+traversal/bomb controls, print-renderer network denial, explicit egress controls
+where practical, logging review, keyboard safety, and scanning evidence.

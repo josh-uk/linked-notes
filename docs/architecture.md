@@ -25,10 +25,11 @@ and the incremented version in one transaction. A stale expected version returns
 the current server note without changing either copy; the editor preserves the
 local draft and asks the user which version should continue.
 
-The note list is a separate paginated projection ordered by pinned status and
-update time. It returns excerpts and metadata rather than full editor documents,
-so opening the workspace does not load every note body. Lifecycle mutations use
-the same optimistic version contract for pin, unpin, trash, and restore.
+The note list is a separate cursor-paginated projection with updated, created,
+and title ordering. It returns excerpts, folder/tag/attachment metadata, and
+lifecycle timestamps rather than full editor documents, so opening the workspace
+does not load every note body. Lifecycle mutations use the same optimistic
+version contract for pin, unpin, archive, unarchive, trash, and restore.
 
 Autosave is debounced in the client, but pending work is also flushed when focus
 leaves the editor, the document becomes hidden, or the user navigates between
@@ -66,6 +67,37 @@ The `20260719182000_durable_links` migration backfills `targetKey` from the
 previous required target foreign key before making the live key nullable and
 changing its deletion action to `SET NULL`. This ordering preserves all existing
 relationships during upgrade.
+
+## Organization, lifecycle, and search
+
+Folders are an adjacency list with a maximum depth of six. All create and move
+operations walk the parent chain and account for the moved subtree height, so
+invalid parents, cycles, and over-depth moves are rejected before mutation.
+Deleting a folder is always an explicit transaction: either its direct notes and
+child folders move to its parent, or notes throughout the subtree move to Trash
+and the subtree is removed. Destination names are checked case-insensitively
+before moving children.
+
+Tags have a case-insensitive, whitespace-normalized unique key separate from the
+editable display name and colour. `NoteTag` keeps associations stable across tag
+renames. Note creation validates and writes its initial folder and tags in the
+same transaction. Metadata edits and bulk actions increment optimistic versions;
+a stale member causes the complete bulk transaction to roll back.
+
+Archive and Trash are independent timestamps. Active lists exclude both;
+archived lists exclude Trash; Trash includes notes regardless of their previous
+archive state. Restoring from Trash preserves an earlier archive timestamp, while
+restoring from Archive clears it. Mentions and backlinks expose the same active,
+archived, trashed, and missing states.
+
+Search uses a parameterized PostgreSQL `websearch_to_tsquery('simple', ...)`
+against weighted title and plain-body vectors. The
+`20260719193000_organization_search` migration adds the matching expression GIN
+index and a lower-title ordering index. Title hits sort before body-only hits,
+then by rank and recency. `ts_headline` supplies bounded marker-delimited excerpts;
+the React client parses only the fixed `<mark>` markers and never inserts result
+HTML. Search is offset-paginated and applies lifecycle, folder, tag, and
+attachment-presence filters in SQL. See [performance measurements](performance.md).
 
 Attachment bytes never enter PostgreSQL. Metadata and SHA-256 checksums do. Opaque storage names prevent client filenames from becoming paths. The application root filesystem is read-only in Compose; the attachment volume and bounded temporary filesystem are the intended writable locations.
 

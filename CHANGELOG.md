@@ -19,3 +19,15 @@ All notable changes to Linked Notes will be documented in this file. The format 
   rendering, grouped contextual backlinks, and transactional link reconciliation.
 - Guarded permanent deletion for trashed notes with retained inbound target
   identity and migration-safe nullable live relationships.
+- Desktop-first nested folder and coloured tag organization with cycle/depth
+  protection, explicit destructive choices, atomic note placement, and stable
+  tag associations across edits.
+- Archive, guarded permanent deletion, configurable opt-in trash retention,
+  sortable/filterable note lists, and transactional bulk lifecycle, move, and tag
+  actions with stale-selection rollback.
+- Ranked and highlighted PostgreSQL full-text search across weighted titles and
+  plain-text bodies, lifecycle/folder/tag/attachment filters, pagination, and a
+  reviewed expression GIN index.
+- Reproducible 10,000-note search/list performance profiling and desktop
+  Playwright coverage for organization, search, lifecycle, bulk actions, crowded
+  sidebar scrolling, and accessibility.
