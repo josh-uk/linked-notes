@@ -26,6 +26,19 @@ is also server-guarded to already-trashed notes. Automatic retention is opt-in,
 defaults to never, and preserves inbound mention identity when it removes an
 expired target.
 
+Attachment requests bypass multipart/body aggregation and stream raw bytes with a
+server-enforced maximum. Display filenames are control-stripped, normalized,
+bounded, and never used as paths; storage names are server-generated UUIDs and
+validated again before every filesystem operation. SHA-256 and byte counts are
+computed while writing, declared lengths must match, partial stages are removed,
+and the database transaction is compensated if final metadata cannot commit.
+Client MIME is only a hint: signatures determine the safe stored/download type,
+active or misleading content falls back to an attachment-only octet stream, and
+only four raster formats can render inline. Download headers prevent sniffing and
+header injection. Reconciliation exposes counts and opaque IDs/names, not file
+contents or host paths, and repair is deliberately limited to bytes no metadata
+references.
+
 The database and application share an internal-only backend network. Each also
 joins a frontend bridge so Docker Desktop can publish loopback-bound application
 and development-database ports; neither port binds to the LAN by default, and

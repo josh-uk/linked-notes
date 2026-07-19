@@ -763,9 +763,25 @@ button:disabled {
 }
 
 .editor-pane {
+  position: relative;
   display: grid;
   grid-template-rows: auto auto auto auto auto minmax(0, 1fr);
   overflow: hidden;
+}
+
+.attachment-drop-overlay {
+  position: absolute;
+  z-index: 20;
+  inset: 0.75rem;
+  display: grid;
+  place-items: center;
+  border: 2px dashed var(--accent);
+  border-radius: 1rem;
+  background: color-mix(in srgb, var(--accent-soft) 88%, transparent);
+  color: var(--accent-ink);
+  font-size: 0.9rem;
+  font-weight: 760;
+  pointer-events: none;
 }
 
 .editor-header {
@@ -1306,6 +1322,231 @@ button:disabled {
   font-size: 0.8rem;
 }
 
+.attachment-panel {
+  width: min(54rem, calc(100% - 2.2rem));
+  margin: 0 auto 7rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--line);
+}
+
+.attachment-panel > header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.attachment-panel > header > div {
+  display: flex;
+  align-items: center;
+  gap: 0.42rem;
+  min-width: 0;
+}
+
+.attachment-panel h2 {
+  margin: 0;
+  color: var(--ink);
+  font-size: 0.88rem;
+  letter-spacing: -0.02em;
+}
+
+.attachment-panel > header span {
+  padding: 0.1rem 0.38rem;
+  border-radius: 999px;
+  background: var(--sidebar);
+  color: var(--subtle);
+  font-size: 0.62rem;
+  font-weight: 750;
+}
+
+.attachment-panel > header button {
+  min-height: 2.1rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.38rem;
+  margin-left: auto;
+  padding: 0 0.7rem;
+  border: 1px solid var(--line);
+  border-radius: 0.58rem;
+  background: var(--surface-raised);
+  color: var(--accent-ink);
+  font-size: 0.72rem;
+  font-weight: 720;
+}
+
+.attachment-hint {
+  margin: 0.35rem 0 0.8rem;
+  color: var(--subtle);
+  font-size: 0.69rem;
+  line-height: 1.45;
+}
+
+.attachment-state,
+.attachment-error {
+  min-height: 4.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  padding: 0.75rem;
+  border: 1px dashed var(--line-strong);
+  border-radius: 0.75rem;
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+.attachment-error {
+  min-height: 0;
+  justify-content: flex-start;
+  margin-bottom: 0.7rem;
+  border-style: solid;
+  border-color: color-mix(in srgb, var(--danger) 32%, var(--line));
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.attachment-error button {
+  margin-left: auto;
+}
+
+.attachment-uploads {
+  display: grid;
+  gap: 0.4rem;
+  margin-bottom: 0.7rem;
+}
+
+.attachment-uploads > div {
+  display: grid;
+  grid-template-columns: auto minmax(8rem, 1fr) minmax(5rem, 9rem) auto;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.6rem 0.7rem;
+  border: 1px solid var(--line);
+  border-radius: 0.7rem;
+  background: var(--list);
+}
+
+.attachment-uploads > div[data-state="failed"] {
+  grid-template-columns: auto minmax(8rem, 1fr) auto auto;
+  border-color: color-mix(in srgb, var(--danger) 30%, var(--line));
+}
+
+.attachment-uploads span {
+  display: grid;
+  min-width: 0;
+}
+
+.attachment-uploads strong,
+.attachment-uploads small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.attachment-uploads strong {
+  font-size: 0.73rem;
+}
+
+.attachment-uploads small {
+  color: var(--muted);
+  font-size: 0.64rem;
+}
+
+.attachment-uploads progress {
+  width: 100%;
+  accent-color: var(--accent);
+}
+
+.attachment-uploads button,
+.attachment-card footer button,
+.attachment-card footer a,
+.attachment-error button {
+  min-height: 1.9rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.3rem;
+  padding: 0 0.55rem;
+  border: 1px solid var(--line);
+  border-radius: 0.5rem;
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.attachment-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.65rem;
+}
+
+.attachment-card {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 4rem minmax(0, 1fr);
+  gap: 0.65rem;
+  padding: 0.65rem;
+  border: 1px solid var(--line);
+  border-radius: 0.8rem;
+  background: var(--list);
+}
+
+.attachment-card > img,
+.attachment-file-mark {
+  width: 4rem;
+  height: 4rem;
+  grid-row: 1 / span 2;
+  border-radius: 0.62rem;
+  object-fit: cover;
+}
+
+.attachment-file-mark {
+  display: grid;
+  place-items: center;
+  background: var(--sidebar);
+  color: var(--accent);
+}
+
+.attachment-card > div {
+  min-width: 0;
+  display: grid;
+  align-content: center;
+  gap: 0.15rem;
+}
+
+.attachment-card > div strong,
+.attachment-card > div small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.attachment-card > div strong {
+  color: var(--ink);
+  font-size: 0.74rem;
+}
+
+.attachment-card > div small {
+  color: var(--muted);
+  font-size: 0.61rem;
+}
+
+.attachment-card footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.35rem;
+}
+
+.attachment-missing {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  color: var(--danger);
+  font-size: 0.62rem;
+}
+
 .backlink-card {
   padding: 0.75rem;
   border: 1px solid var(--line);
@@ -1622,6 +1863,56 @@ dialog::backdrop {
   line-height: 1.5;
 }
 
+.storage-check {
+  display: grid;
+  gap: 0.55rem;
+  margin-top: 1rem;
+  padding: 0.85rem;
+  border: 1px solid var(--line);
+  border-radius: 0.75rem;
+  background: var(--list);
+}
+
+.storage-check h3 {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0;
+  font-size: 0.8rem;
+}
+
+.storage-check p {
+  margin: 0;
+}
+
+.storage-check > button,
+.storage-report button {
+  min-height: 2.15rem;
+  justify-self: start;
+  padding: 0 0.7rem;
+  border: 1px solid var(--line);
+  border-radius: 0.55rem;
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 0.7rem;
+  font-weight: 720;
+}
+
+.storage-report {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.35rem;
+  padding-top: 0.45rem;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 0.68rem;
+}
+
+.storage-report button {
+  grid-column: 1 / -1;
+  margin-top: 0.3rem;
+}
+
 .destructive-choice label {
   display: flex;
   align-items: flex-start;
@@ -1787,6 +2078,23 @@ dialog::backdrop {
 
   .editor-toolbar {
     width: calc(100% - 1.4rem);
+  }
+
+  .attachment-panel {
+    width: calc(100% - 1.4rem);
+  }
+
+  .attachment-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .attachment-uploads > div,
+  .attachment-uploads > div[data-state="failed"] {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+  }
+
+  .attachment-uploads progress {
+    grid-column: 2 / -1;
   }
 
   .editor-banner,

@@ -31,3 +31,13 @@ All notable changes to Linked Notes will be documented in this file. The format 
 - Reproducible 10,000-note search/list performance profiling and desktop
   Playwright coverage for organization, search, lifecycle, bulk actions, crowded
   sidebar scrolling, and accessibility.
+- Raw streamed arbitrary-file ingestion with a configurable 100 MiB default,
+  generated opaque storage names, single-pass SHA-256/size enforcement,
+  signature-derived safe MIME, bounded image-dimension inspection, and explicit
+  database/filesystem compensation.
+- Desktop file picker, drag/drop, clipboard-image attachment flows, progress,
+  cancellation, recoverable retry, safe raster previews, generic file cards,
+  byte-for-byte downloads, attachment filtering, and deliberate removal.
+- Missing/corrupt/orphan/stale-stage reconciliation, attachment-volume health,
+  permanent-note/retention byte cleanup, restart persistence evidence, and a
+  reproducible 96 MiB bounded-memory Docker profile.

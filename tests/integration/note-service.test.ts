@@ -1,8 +1,28 @@
 import { Prisma } from "@prisma/client";
+import { createHash, randomUUID } from "node:crypto";
+import {
+  access,
+  mkdir,
+  mkdtemp,
+  readFile,
+  rm,
+  unlink,
+  writeFile,
+} from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import { EMPTY_EDITOR_DOCUMENT } from "@/features/notes/document-schema";
 import { prisma } from "@/server/db";
+import {
+  deleteAttachment,
+  getAttachmentDownload,
+  listNoteAttachments,
+  reconcileAttachments,
+  uploadAttachment,
+} from "@/server/attachments/attachment-service";
+import { listStoredFileNames } from "@/server/attachments/attachment-storage";
 import { NoteDomainError } from "@/server/notes/note-errors";
 import {
   listBacklinks,
@@ -41,6 +61,8 @@ const richDocument = {
   ],
 };
 
+let attachmentDirectory: string;
+
 function linkedDocument(
   targetId: string,
   mentionId = crypto.randomUUID(),
@@ -65,14 +87,26 @@ function linkedDocument(
 }
 
 describe("note service", () => {
-  beforeAll(() => prisma.$connect());
+  beforeAll(async () => {
+    attachmentDirectory = await mkdtemp(
+      path.join(tmpdir(), "linked-notes-attachment-integration-"),
+    );
+    process.env.ATTACHMENTS_DIR = attachmentDirectory;
+    process.env.MAX_UPLOAD_BYTES = "104857600";
+    await prisma.$connect();
+  });
   beforeEach(async () => {
     await prisma.note.deleteMany();
     await prisma.folder.deleteMany();
     await prisma.tag.deleteMany();
     await prisma.setting.deleteMany();
+    await rm(attachmentDirectory, { recursive: true, force: true });
+    await mkdir(attachmentDirectory, { recursive: true });
   });
-  afterAll(() => prisma.$disconnect());
+  afterAll(async () => {
+    await prisma.$disconnect();
+    await rm(attachmentDirectory, { recursive: true, force: true });
+  });
 
   it("creates, reads, and atomically updates a derived editor document", async () => {
     const created = await createNote({ title: "Integration note" });
@@ -550,4 +584,305 @@ describe("note service", () => {
     await listNotes({ view: "trash", limit: 40 });
     expect(await prisma.note.count({ where: { id: note.id } })).toBe(0);
   });
+
+  it("streams representative files, derives safe metadata, and downloads byte-for-byte", async () => {
+    let note = await createNote({ title: "Attachment formats" });
+    const fixtures = [
+      {
+        name: "manual.pdf",
+        declared: "application/pdf",
+        bytes: Buffer.from("%PDF-1.7\nlocal test"),
+        mimeType: "application/pdf",
+      },
+      {
+        name: "record.json",
+        declared: "application/json",
+        bytes: Buffer.from('{"linked":true}'),
+        mimeType: "application/json",
+      },
+      {
+        name: "pixel.png",
+        declared: "image/png",
+        bytes: pngFixture(3, 2),
+        mimeType: "image/png",
+      },
+      {
+        name: "photo.jpg",
+        declared: "image/jpeg",
+        bytes: Buffer.from("ffd8ffe000104a4649460001ffd9", "hex"),
+        mimeType: "image/jpeg",
+      },
+      {
+        name: "notes.docx",
+        declared:
+          "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        bytes: Buffer.concat([
+          Buffer.from("504b0304", "hex"),
+          Buffer.from("[Content_Types].xml word/document.xml"),
+        ]),
+        mimeType:
+          "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      },
+      {
+        name: "unknown.bin",
+        declared: "application/x-custom",
+        bytes: Buffer.from([0, 1, 2, 3, 4, 5]),
+        mimeType: "application/octet-stream",
+      },
+    ];
+
+    for (const fixture of fixtures) {
+      const result = await uploadAttachment(
+        note.id,
+        {
+          filename: fixture.name,
+          expectedVersion: note.optimisticVersion,
+          contentLength: fixture.bytes.length,
+          declaredMimeType: fixture.declared,
+        },
+        chunks(fixture.bytes, 3),
+      );
+      note = result.note;
+      expect(result.attachment).toMatchObject({
+        originalName: fixture.name,
+        mimeType: fixture.mimeType,
+        byteSize: fixture.bytes.length,
+        checksumSha256: createHash("sha256")
+          .update(fixture.bytes)
+          .digest("hex"),
+        available: true,
+      });
+      if (fixture.mimeType === "image/png") {
+        expect(result.attachment).toMatchObject({ width: 3, height: 2 });
+      }
+      const download = await getAttachmentDownload(result.attachment.id);
+      expect(await collect(download.stream)).toEqual(fixture.bytes);
+    }
+
+    expect(
+      (await listNoteAttachments(note.id, { limit: 100 })).items,
+    ).toHaveLength(fixtures.length);
+    expect(
+      (await listNotes({ view: "all", limit: 40, attachments: "with" }))
+        .items[0],
+    ).toMatchObject({ id: note.id, attachmentCount: fixtures.length });
+  });
+
+  it("rejects stale, oversized, misleading, and interrupted uploads without orphaning bytes", async () => {
+    const note = await createNote({ title: "Unsafe upload cases" });
+    const misleading = Buffer.from("<svg onload=alert(1)></svg>");
+    const uploaded = await uploadAttachment(
+      note.id,
+      {
+        filename: "../../unsafe\r\n.svg",
+        expectedVersion: note.optimisticVersion,
+        contentLength: misleading.length,
+        declaredMimeType: "image/svg+xml",
+      },
+      chunks(misleading, 4),
+    );
+    expect(uploaded.attachment).toMatchObject({
+      originalName: ".._.._unsafe.svg",
+      mimeType: "application/octet-stream",
+      previewUrl: null,
+    });
+    const storedBefore = await listStoredFileNames();
+
+    await expect(
+      uploadAttachment(
+        note.id,
+        {
+          filename: "stale.bin",
+          expectedVersion: note.optimisticVersion,
+          contentLength: 4,
+          declaredMimeType: "application/octet-stream",
+        },
+        chunks(Buffer.from("test"), 2),
+      ),
+    ).rejects.toMatchObject({ code: "ATTACHMENT_CONFLICT", status: 409 });
+
+    process.env.MAX_UPLOAD_BYTES = "8";
+    await expect(
+      uploadAttachment(
+        note.id,
+        {
+          filename: "large.bin",
+          expectedVersion: uploaded.note.optimisticVersion,
+          contentLength: null,
+          declaredMimeType: "application/octet-stream",
+        },
+        chunks(Buffer.alloc(9), 2),
+      ),
+    ).rejects.toMatchObject({ code: "ATTACHMENT_TOO_LARGE", status: 413 });
+    process.env.MAX_UPLOAD_BYTES = "104857600";
+
+    await expect(
+      uploadAttachment(
+        note.id,
+        {
+          filename: "interrupted.bin",
+          expectedVersion: uploaded.note.optimisticVersion,
+          contentLength: null,
+          declaredMimeType: "application/octet-stream",
+        },
+        interruptedChunks(),
+      ),
+    ).rejects.toThrow("Simulated interruption");
+    expect(await listStoredFileNames()).toEqual(storedBefore);
+  });
+
+  it("reports missing and corrupt bytes and repairs only unreferenced storage", async () => {
+    const note = await createNote({ title: "Reconciliation" });
+    const first = await uploadAttachment(
+      note.id,
+      {
+        filename: "missing.txt",
+        expectedVersion: note.optimisticVersion,
+        contentLength: 7,
+        declaredMimeType: "text/plain",
+      },
+      chunks(Buffer.from("missing"), 3),
+    );
+    const second = await uploadAttachment(
+      note.id,
+      {
+        filename: "corrupt.txt",
+        expectedVersion: first.note.optimisticVersion,
+        contentLength: 7,
+        declaredMimeType: "text/plain",
+      },
+      chunks(Buffer.from("correct"), 3),
+    );
+    const records = await prisma.attachment.findMany({
+      where: { id: { in: [first.attachment.id, second.attachment.id] } },
+    });
+    const missing = records.find(({ id }) => id === first.attachment.id)!;
+    const corrupt = records.find(({ id }) => id === second.attachment.id)!;
+    await unlink(path.join(attachmentDirectory, missing.storageName));
+    await writeFile(
+      path.join(attachmentDirectory, corrupt.storageName),
+      Buffer.from("changed"),
+    );
+    const orphanName = randomUUID();
+    await writeFile(path.join(attachmentDirectory, orphanName), "orphan");
+
+    const listed = await listNoteAttachments(note.id, { limit: 100 });
+    expect(listed.items.find(({ id }) => id === missing.id)).toMatchObject({
+      available: false,
+      unavailableReason: "missing",
+    });
+    await expect(getAttachmentDownload(missing.id)).rejects.toMatchObject({
+      code: "ATTACHMENT_BYTES_MISSING",
+      status: 410,
+    });
+
+    const report = await reconcileAttachments({ repairOrphans: false });
+    expect(report.missingAttachmentIds).toContain(missing.id);
+    expect(report.corruptAttachmentIds).toContain(corrupt.id);
+    expect(report.orphanedStorageNames).toContain(orphanName);
+
+    const repaired = await reconcileAttachments({ repairOrphans: true });
+    expect(repaired.repair?.orphanedBytes.deleted).toBe(1);
+    await expect(
+      access(path.join(attachmentDirectory, orphanName)),
+    ).rejects.toThrow();
+    expect(await prisma.attachment.count()).toBe(2);
+  });
+
+  it("removes bytes after attachment, permanent-note, and retention transactions", async () => {
+    let note = await createNote({ title: "Delete attachment bytes" });
+    const uploaded = await uploadAttachment(
+      note.id,
+      {
+        filename: "remove.txt",
+        expectedVersion: note.optimisticVersion,
+        contentLength: 6,
+        declaredMimeType: "text/plain",
+      },
+      chunks(Buffer.from("remove"), 2),
+    );
+    const stored = await prisma.attachment.findUniqueOrThrow({
+      where: { id: uploaded.attachment.id },
+    });
+    const removed = await deleteAttachment(uploaded.attachment.id, {
+      expectedVersion: uploaded.note.optimisticVersion,
+    });
+    note = removed.note;
+    await expect(
+      readFile(path.join(attachmentDirectory, stored.storageName)),
+    ).rejects.toThrow();
+
+    const permanent = await uploadAttachment(
+      note.id,
+      {
+        filename: "permanent.txt",
+        expectedVersion: note.optimisticVersion,
+        contentLength: 9,
+        declaredMimeType: "text/plain",
+      },
+      chunks(Buffer.from("permanent"), 3),
+    );
+    const permanentRecord = await prisma.attachment.findUniqueOrThrow({
+      where: { id: permanent.attachment.id },
+    });
+    const trashed = await applyNoteLifecycle(note.id, {
+      action: "trash",
+      expectedVersion: permanent.note.optimisticVersion,
+    });
+    await deleteNotePermanently(note.id, {
+      expectedVersion: trashed.optimisticVersion,
+    });
+    await expect(
+      access(path.join(attachmentDirectory, permanentRecord.storageName)),
+    ).rejects.toThrow();
+
+    const retainedNote = await createNote({ title: "Retention bytes" });
+    const retained = await uploadAttachment(
+      retainedNote.id,
+      {
+        filename: "retained.txt",
+        expectedVersion: retainedNote.optimisticVersion,
+        contentLength: 8,
+        declaredMimeType: "text/plain",
+      },
+      chunks(Buffer.from("retained"), 2),
+    );
+    const retainedRecord = await prisma.attachment.findUniqueOrThrow({
+      where: { id: retained.attachment.id },
+    });
+    await prisma.note.update({
+      where: { id: retainedNote.id },
+      data: { trashedAt: new Date("2020-01-01T00:00:00.000Z") },
+    });
+    await setTrashRetention({ days: 30 });
+    await listNotes({ view: "trash", limit: 40 });
+    await expect(
+      access(path.join(attachmentDirectory, retainedRecord.storageName)),
+    ).rejects.toThrow();
+  });
 });
+
+async function* chunks(value: Buffer, size: number) {
+  for (let offset = 0; offset < value.length; offset += size) {
+    yield value.subarray(offset, offset + size);
+  }
+}
+
+async function* interruptedChunks() {
+  yield Buffer.from("partial");
+  throw new Error("Simulated interruption");
+}
+
+async function collect(stream: NodeJS.ReadableStream) {
+  const chunks: Buffer[] = [];
+  for await (const chunk of stream) chunks.push(Buffer.from(chunk));
+  return Buffer.concat(chunks);
+}
+
+function pngFixture(width: number, height: number) {
+  const value = Buffer.alloc(24);
+  Buffer.from("89504e470d0a1a0a", "hex").copy(value);
+  value.writeUInt32BE(width, 16);
+  value.writeUInt32BE(height, 20);
+  return value;
+}
