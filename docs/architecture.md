@@ -99,6 +99,38 @@ the React client parses only the fixed `<mark>` markers and never inserts result
 HTML. Search is offset-paginated and applies lifecycle, folder, tag, and
 attachment-presence filters in SQL. See [performance measurements](performance.md).
 
-Attachment bytes never enter PostgreSQL. Metadata and SHA-256 checksums do. Opaque storage names prevent client filenames from becoming paths. The application root filesystem is read-only in Compose; the attachment volume and bounded temporary filesystem are the intended writable locations.
+## Attachment ingestion and integrity
+
+Attachment bytes never enter PostgreSQL. The upload route consumes the raw web
+request stream directly rather than calling `formData()`. A bounded loop writes
+each chunk once to `/data/attachments/.staging`, updates SHA-256 in the same pass,
+captures at most 256 KiB for signature/dimension inspection, and enforces the
+configured limit even when `Content-Length` is absent or false. The default limit
+is 100 MiB.
+
+Client filenames are normalized display metadata and arrive in a percent-encoded
+request header so they are not placed in paths or normal access URLs. Stored
+filenames are generated UUIDs without extensions. MIME types are derived from
+bounded signatures for PNG, JPEG, GIF, WebP, PDF, ZIP/DOCX, JSON, and plain text;
+untrusted or active mismatches become `application/octet-stream`. Only detected
+PNG/JPEG/GIF/WebP receive inline preview URLs. Downloads use detected MIME,
+RFC 5987-safe dispositions, `nosniff`, no-store caching, and a sandboxed CSP for
+inline images.
+
+After a complete stage is synced, it is atomically renamed into the attachment
+volume. The attachment row and optimistic note-version increment then share a
+PostgreSQL transaction; a failure removes the stored byte. Removal, permanent
+note deletion, and timed retention commit database changes first, then unlink
+bytes. A failed post-commit unlink emits only a structured opaque-name warning
+and is recoverable through reconciliation. Crashes between filesystem and
+database boundaries can therefore leave an orphan, never a committed row that
+points at a partially written file.
+
+Manual reconciliation streams checksums, compares recorded sizes, reports
+missing/corrupt rows and unreferenced/stale staged bytes, and can remove only the
+unreferenced bytes. The health endpoint verifies both database reachability and
+attachment-directory writability. The application container runs as UID 1001
+with a read-only root; the attachment named volume and bounded `/tmp` tmpfs are
+the intended writable locations. See [attachment storage and recovery](attachments.md).
 
 See [ADR 0001](adr/0001-local-monolith.md), [ADR 0002](adr/0002-versioned-editor-json.md), and [ADR 0003](adr/0003-durable-note-links.md).

@@ -7,6 +7,7 @@ import type {
   TagSummary,
 } from "@/features/notes/types";
 import { prisma } from "@/server/db";
+import { deleteStoredFiles } from "@/server/attachments/attachment-storage";
 
 import { NoteDomainError } from "./note-errors";
 
@@ -356,11 +357,21 @@ export async function applyConfiguredTrashRetention(): Promise<number> {
   const days = settingNumber(setting?.value);
   if (days === 0) return 0;
   const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
-  return (
-    await prisma.note.deleteMany({
+  const deleted = await prisma.$transaction(async (transaction) => {
+    const attachments = await transaction.attachment.findMany({
+      where: { note: { trashedAt: { lte: cutoff } } },
+      select: { storageName: true },
+    });
+    const notes = await transaction.note.deleteMany({
       where: { trashedAt: { lte: cutoff } },
-    })
-  ).count;
+    });
+    return {
+      count: notes.count,
+      storageNames: attachments.map(({ storageName }) => storageName),
+    };
+  });
+  await deleteStoredFiles(deleted.storageNames);
+  return deleted.count;
 }
 
 export async function assertFolderExists(

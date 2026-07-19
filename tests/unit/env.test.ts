@@ -20,4 +20,13 @@ describe("readServerEnvironment", () => {
       }),
     ).toThrow();
   });
+
+  it("rejects a relative attachment directory", () => {
+    expect(() =>
+      readServerEnvironment({
+        DATABASE_URL: "postgresql://local/test",
+        ATTACHMENTS_DIR: "./attachments",
+      }),
+    ).toThrow();
+  });
 });

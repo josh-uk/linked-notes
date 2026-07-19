@@ -129,6 +129,27 @@ export type SearchPage = {
   nextOffset: number | null;
 };
 
+export type AttachmentItem = {
+  id: string;
+  noteId: string;
+  originalName: string;
+  mimeType: string;
+  byteSize: number;
+  checksumSha256: string;
+  width: number | null;
+  height: number | null;
+  createdAt: string;
+  available: boolean;
+  unavailableReason: "missing" | "size-mismatch" | null;
+  downloadUrl: string;
+  previewUrl: string | null;
+};
+
+export type AttachmentsPage = {
+  items: AttachmentItem[];
+  nextCursor: string | null;
+};
+
 export type NoteLifecycleAction =
   "pin" | "unpin" | "archive" | "unarchive" | "trash" | "restore";
 
