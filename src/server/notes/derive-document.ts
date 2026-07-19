@@ -4,6 +4,7 @@ import sanitizeHtml from "sanitize-html";
 
 import { parseEditorDocument } from "@/features/notes/document-schema";
 import { createEditorExtensions } from "@/features/notes/editor-extensions";
+import type { MentionTarget } from "@/features/notes/types";
 
 const serverExtensions = createEditorExtensions({ placeholder: false });
 
@@ -19,8 +20,29 @@ export function deriveEditorDocument(value: unknown): DerivedDocument {
   const plainText = generateText(document, serverExtensions, {
     blockSeparator: "\n",
   }).trim();
-  const renderedHtml = generateHTML(document, serverExtensions);
-  const sanitizedHtml = sanitizeHtml(renderedHtml, {
+  const sanitizedHtml = sanitizeRenderedHtml(
+    generateHTML(document, serverExtensions),
+  );
+
+  return { content, plainText, sanitizedHtml };
+}
+
+export function renderEditorDocumentHtml(
+  value: unknown,
+  mention?: { currentNoteId: string; targets: MentionTarget[] },
+) {
+  const content = parseEditorDocument(value);
+  const extensions = mention
+    ? createEditorExtensions({
+        placeholder: false,
+        mention: { ...mention, suggestions: false },
+      })
+    : serverExtensions;
+  return sanitizeRenderedHtml(generateHTML(content as JSONContent, extensions));
+}
+
+function sanitizeRenderedHtml(renderedHtml: string) {
+  return sanitizeHtml(renderedHtml, {
     allowedTags: [
       "p",
       "h1",
@@ -67,6 +89,4 @@ export function deriveEditorDocument(value: unknown): DerivedDocument {
     allowProtocolRelative: false,
     enforceHtmlBoundary: true,
   });
-
-  return { content, plainText, sanitizedHtml };
 }

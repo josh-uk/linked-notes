@@ -486,6 +486,8 @@ export function NoteWorkspace() {
         initialSection={organizationSection}
         organization={organization}
         onClose={() => setOrganizationOpen(false)}
+        beforeRestore={async () => (await editorRef.current?.flush()) ?? true}
+        onWorkspaceRestored={() => window.location.reload()}
         onChanged={async () => {
           const nextOrganization = await fetchOrganization();
           const removedCurrentFolder = Boolean(

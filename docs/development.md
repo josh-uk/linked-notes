@@ -51,6 +51,22 @@ after attachment/note/retention transactions. Desktop Playwright covers picker,
 drop, clipboard image, progress/retry, preview, download headers, filtering,
 confirmation, storage checks, and Axe.
 
+Phase 5 unit coverage validates Markdown semantics, canonical and relational
+backup manifests, hostile archive paths, ID remapping, and self-contained escaped
+print HTML. The real-PostgreSQL suite performs full replace round trips, safety
+backup creation, merge collision remapping, link and byte preservation, and
+no-mutation rejection for corrupt, checksum-invalid, traversal, oversized,
+incomplete, entry-flood, and excessive-expansion archives. Desktop Playwright
+downloads Markdown, generates the same PDF twice and compares SHA-256, downloads
+a complete archive, performs a confirmed replace, downloads the safety backup,
+and verifies the restored workspace.
+
+Backup/restore integration and browser journeys replace the complete isolated
+workspace and must run with one worker. Never point either at the preview or a
+personal database. The browser server also needs a writable absolute
+`ATTACHMENTS_DIR`; Docker provides Chromium at `/usr/bin/chromium`, while local
+Playwright uses its managed Chromium installation.
+
 Always point destructive integration runs at a dedicated database, not the Docker
 preview database:
 

@@ -8,6 +8,8 @@ import {
   Check,
   ChevronLeft,
   CloudOff,
+  FileDown,
+  FileText,
   FolderClosed,
   LoaderCircle,
   Pin,
@@ -470,6 +472,15 @@ export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
       void attachmentRef.current?.uploadFiles(images);
     }
 
+    async function downloadExport(format: "markdown" | "pdf") {
+      if (!(await flush())) return;
+      const query = new URLSearchParams({
+        format,
+        ...(format === "pdf" ? { backlinks: "true" } : {}),
+      });
+      window.location.assign(`/api/notes/${note.id}/export?${query}`);
+    }
+
     return (
       <section
         className="editor-pane"
@@ -522,6 +533,24 @@ export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
             <span>{saveLabel(saveState)}</span>
           </div>
           <div className="editor-actions">
+            <button
+              type="button"
+              className="icon-button"
+              aria-label="Export note as Markdown"
+              title="Export Markdown"
+              onClick={() => void downloadExport("markdown")}
+            >
+              <FileText size={18} aria-hidden="true" />
+            </button>
+            <button
+              type="button"
+              className="icon-button"
+              aria-label="Export note as PDF with backlinks"
+              title="Export PDF"
+              onClick={() => void downloadExport("pdf")}
+            >
+              <FileDown size={18} aria-hidden="true" />
+            </button>
             {!note.trashedAt ? (
               <>
                 <button

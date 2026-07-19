@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  Download,
   FolderClosed,
   HardDrive,
   Hash,
@@ -8,6 +9,7 @@ import {
   Plus,
   Settings,
   Trash2,
+  Upload,
   X,
 } from "lucide-react";
 import { FormEvent, useEffect, useRef, useState } from "react";
@@ -27,6 +29,8 @@ type OrganizationDialogProps = {
   organization: OrganizationResponse | null;
   onClose: () => void;
   onChanged: () => Promise<void>;
+  beforeRestore: () => Promise<boolean>;
+  onWorkspaceRestored: () => void;
 };
 
 type StorageReport = {
@@ -42,14 +46,47 @@ type StorageReport = {
   };
 };
 
+type RestoreReport = {
+  restored: true;
+  mode: "merge" | "replace";
+  source: { applicationVersion: string };
+  archive: {
+    compressedBytes: number;
+    expandedBytes: number;
+    entryCount: number;
+  };
+  summary: {
+    foldersCreated: number;
+    foldersMatched: number;
+    tagsCreated: number;
+    tagsMatched: number;
+    notesCreated: number;
+    noteIdsRemapped: number;
+    attachmentsCreated: number;
+    attachmentIdsRemapped: number;
+    missingTargetKeysRemapped: number;
+    settingsImported: number;
+  };
+  safetyBackup: null | {
+    name: string;
+    byteSize: number;
+    checksumSha256: string;
+    downloadUrl: string;
+  };
+};
+
 export function OrganizationDialog({
   open,
   initialSection,
   organization,
   onClose,
   onChanged,
+  beforeRestore,
+  onWorkspaceRestored,
 }: OrganizationDialogProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
+  const restoreInputRef = useRef<HTMLInputElement>(null);
+  const restoreRequestRef = useRef<XMLHttpRequest | null>(null);
   const [section, setSection] = useState<OrganizationSection>(initialSection);
   const [folderName, setFolderName] = useState("");
   const [folderParentId, setFolderParentId] = useState("");
@@ -72,6 +109,13 @@ export function OrganizationDialog({
   const [storageReport, setStorageReport] = useState<StorageReport | null>(
     null,
   );
+  const [restoreFile, setRestoreFile] = useState<File | null>(null);
+  const [restoreMode, setRestoreMode] = useState<"merge" | "replace">("merge");
+  const [replaceConfirmation, setReplaceConfirmation] = useState("");
+  const [restoreProgress, setRestoreProgress] = useState<number | null>(null);
+  const [restoreReport, setRestoreReport] = useState<RestoreReport | null>(
+    null,
+  );
 
   useEffect(() => {
     const dialog = dialogRef.current;
@@ -84,6 +128,13 @@ export function OrganizationDialog({
     }
     if (!open && dialog.open) dialog.close();
   }, [initialSection, open]);
+
+  useEffect(
+    () => () => {
+      restoreRequestRef.current?.abort();
+    },
+    [],
+  );
 
   async function request(url: string, init: RequestInit) {
     setPending(true);
@@ -206,6 +257,46 @@ export function OrganizationDialog({
     }
   }
 
+  async function restoreBackup() {
+    if (!restoreFile || !(await beforeRestore())) return;
+    setPending(true);
+    setError(null);
+    setMessage(null);
+    setRestoreReport(null);
+    setRestoreProgress(0);
+    try {
+      const query = new URLSearchParams({ mode: restoreMode });
+      if (restoreMode === "replace") query.set("confirmation", "REPLACE");
+      const report = await uploadRestoreArchive(
+        `/api/backups/restore?${query}`,
+        restoreFile,
+        (progress) => setRestoreProgress(progress),
+        (request) => {
+          restoreRequestRef.current = request;
+        },
+      );
+      setRestoreReport(report);
+      setRestoreFile(null);
+      setReplaceConfirmation("");
+      if (restoreInputRef.current) restoreInputRef.current.value = "";
+      setMessage(
+        report.mode === "replace"
+          ? "Workspace replaced. A safety backup is ready; reload when you have saved it."
+          : "Backup merged. Reload the workspace to show imported notes.",
+      );
+    } catch (restoreError) {
+      setError(
+        restoreError instanceof Error
+          ? restoreError.message
+          : "The backup could not be restored",
+      );
+    } finally {
+      restoreRequestRef.current = null;
+      setRestoreProgress(null);
+      setPending(false);
+    }
+  }
+
   function resetFolderForm() {
     setFolderName("");
     setFolderParentId("");
@@ -225,7 +316,7 @@ export function OrganizationDialog({
       aria-labelledby="organization-title"
       onCancel={(event) => {
         event.preventDefault();
-        onClose();
+        if (!pending) onClose();
       }}
       onClose={onClose}
     >
@@ -237,6 +328,7 @@ export function OrganizationDialog({
         <button
           type="button"
           className="icon-button"
+          disabled={pending}
           aria-label="Close organization settings"
           onClick={onClose}
         >
@@ -582,8 +674,188 @@ export function OrganizationDialog({
               </div>
             ) : null}
           </div>
+          <div className="backup-tools">
+            <h3>
+              <Download size={16} aria-hidden="true" /> Portable backup
+            </h3>
+            <p>
+              Download a versioned archive containing the complete workspace and
+              attachment bytes. Database and files are checksummed together.
+            </p>
+            <a className="backup-download" href="/api/backups" download>
+              <Download size={15} aria-hidden="true" /> Download full backup
+            </a>
+
+            <div className="restore-form" aria-labelledby="restore-title">
+              <h3 id="restore-title">
+                <Upload size={16} aria-hidden="true" /> Restore a backup
+              </h3>
+              <p>
+                The complete archive is staged and validated before the live
+                workspace changes. Merge keeps current data; replace creates a
+                downloadable safety backup first.
+              </p>
+              <label>
+                Backup archive
+                <input
+                  ref={restoreInputRef}
+                  type="file"
+                  accept=".gz,.tgz,.tar.gz,.linked-notes-backup.tar.gz,application/gzip"
+                  disabled={pending}
+                  onChange={(event) => {
+                    setRestoreFile(event.target.files?.[0] ?? null);
+                    setRestoreReport(null);
+                    setError(null);
+                  }}
+                />
+              </label>
+              <label>
+                Restore mode
+                <select
+                  value={restoreMode}
+                  disabled={pending}
+                  onChange={(event) => {
+                    setRestoreMode(event.target.value as "merge" | "replace");
+                    setReplaceConfirmation("");
+                  }}
+                >
+                  <option value="merge">Merge with this workspace</option>
+                  <option value="replace">Replace this workspace</option>
+                </select>
+              </label>
+              {restoreMode === "replace" ? (
+                <label className="replace-confirmation">
+                  Type REPLACE to confirm permanent workspace replacement
+                  <input
+                    value={replaceConfirmation}
+                    autoComplete="off"
+                    disabled={pending}
+                    onChange={(event) =>
+                      setReplaceConfirmation(event.target.value)
+                    }
+                  />
+                </label>
+              ) : null}
+              {restoreFile ? (
+                <small>
+                  Selected: {restoreFile.name} · {formatBytes(restoreFile.size)}
+                </small>
+              ) : null}
+              {restoreProgress !== null ? (
+                <div className="restore-progress" role="status">
+                  <progress value={restoreProgress} max={100}>
+                    {restoreProgress}%
+                  </progress>
+                  <span>
+                    {restoreProgress < 100
+                      ? `${restoreProgress}% uploaded`
+                      : "Validating and restoring…"}
+                  </span>
+                </div>
+              ) : null}
+              <button
+                type="button"
+                disabled={
+                  pending ||
+                  !restoreFile ||
+                  (restoreMode === "replace" &&
+                    replaceConfirmation !== "REPLACE")
+                }
+                onClick={() => void restoreBackup()}
+              >
+                <Upload size={15} aria-hidden="true" />
+                {pending ? "Restoring…" : "Validate and restore"}
+              </button>
+              {pending && restoreProgress !== null ? (
+                <button
+                  type="button"
+                  onClick={() => restoreRequestRef.current?.abort()}
+                >
+                  Cancel restore
+                </button>
+              ) : null}
+              {restoreReport ? (
+                <div className="restore-report" role="status">
+                  <strong>Restore complete</strong>
+                  <span>
+                    {restoreReport.summary.notesCreated} notes ·{" "}
+                    {restoreReport.summary.attachmentsCreated} attachments ·{" "}
+                    {restoreReport.summary.noteIdsRemapped} note IDs remapped
+                  </span>
+                  <span>
+                    {formatBytes(restoreReport.archive.compressedBytes)} archive
+                    · {restoreReport.archive.entryCount} entries validated
+                  </span>
+                  {restoreReport.safetyBackup ? (
+                    <a href={restoreReport.safetyBackup.downloadUrl} download>
+                      <Download size={14} aria-hidden="true" /> Download safety
+                      backup
+                    </a>
+                  ) : null}
+                  <button type="button" onClick={onWorkspaceRestored}>
+                    Reload workspace
+                  </button>
+                </div>
+              ) : null}
+            </div>
+          </div>
         </section>
       ) : null}
     </dialog>
   );
+}
+
+function uploadRestoreArchive(
+  url: string,
+  file: File,
+  onProgress: (progress: number) => void,
+  onRequest: (request: XMLHttpRequest) => void,
+) {
+  return new Promise<RestoreReport>((resolve, reject) => {
+    const request = new XMLHttpRequest();
+    onRequest(request);
+    request.open("POST", url);
+    request.setRequestHeader("Content-Type", "application/gzip");
+    request.upload.onprogress = (event) => {
+      if (event.lengthComputable) {
+        onProgress(
+          Math.min(100, Math.round((event.loaded / event.total) * 100)),
+        );
+      }
+    };
+    request.onload = () => {
+      try {
+        const payload = JSON.parse(request.responseText) as
+          RestoreReport | ApiError;
+        if (
+          request.status < 200 ||
+          request.status >= 300 ||
+          "error" in payload
+        ) {
+          reject(
+            new Error(
+              "error" in payload
+                ? payload.error.message
+                : "The backup could not be restored",
+            ),
+          );
+          return;
+        }
+        onProgress(100);
+        resolve(payload);
+      } catch {
+        reject(new Error("The restore returned an invalid response"));
+      }
+    };
+    request.onerror = () => reject(new Error("The restore was interrupted"));
+    request.onabort = () => reject(new Error("Restore cancelled"));
+    request.send(file);
+  });
+}
+
+function formatBytes(bytes: number) {
+  if (bytes < 1_024) return `${bytes} B`;
+  if (bytes < 1_048_576) return `${(bytes / 1_024).toFixed(1)} KiB`;
+  if (bytes < 1_073_741_824) return `${(bytes / 1_048_576).toFixed(1)} MiB`;
+  return `${(bytes / 1_073_741_824).toFixed(1)} GiB`;
 }
