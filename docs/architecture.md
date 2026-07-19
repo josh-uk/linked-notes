@@ -133,4 +133,24 @@ attachment-directory writability. The application container runs as UID 1001
 with a read-only root; the attachment named volume and bounded `/tmp` tmpfs are
 the intended writable locations. See [attachment storage and recovery](attachments.md).
 
+## Export and portable restore
+
+Markdown export walks canonical Tiptap JSON directly, escaping Markdown syntax
+while preserving headings, lists, tasks, code, formatting, ordinary links, and
+durable note references. PDF export first renders the same validated document to
+a dedicated self-contained print page. Safe local raster attachment bytes become
+bounded data URLs. A serial headless-Chromium renderer disables JavaScript and
+service workers, aborts every non-`data:`/`blob:` request, applies fixed A4 CSS,
+and normalizes generated PDF dates and IDs for deterministic bytes.
+
+Full backup generation captures a repeatable-read PostgreSQL snapshot, writes a
+strict versioned manifest, and streams checksum-verified attachment bytes into a
+completed tar-gzip file on the attachment volume. Restore is a stage/validate,
+plan, filesystem-move, database-transaction sequence. Archive paths are never
+used as extraction destinations. Replace creates a complete safety archive
+before imported bytes move; merge allocates collision-safe entity IDs and remaps
+editor mentions and normalized links as one plan. The final relational import is
+serializable and therefore becomes visible as one complete workspace state. See
+[backup, restore, and recovery](backup-format.md).
+
 See [ADR 0001](adr/0001-local-monolith.md), [ADR 0002](adr/0002-versioned-editor-json.md), and [ADR 0003](adr/0003-durable-note-links.md).

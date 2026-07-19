@@ -55,9 +55,15 @@ metadata and stored-file counts with zero missing, corrupt, orphaned, or stale
 files. These local numbers demonstrate bounded behavior for the agreed fixture;
 they are not a universal throughput guarantee.
 
-## Manual backup before Phase 5
+## Backup and recovery
 
-Until the portable backup workflow lands, stop writes and back up PostgreSQL plus
-the complete `attachment_data` volume at the same point in time. Do not delete the
-volume with `docker compose down --volumes` unless permanent data loss is
-intended.
+Workspace Settings now creates one portable archive containing the relational
+workspace and checksum-verified attachment bytes. Restore stages and verifies
+the complete archive before changing live data; replacement creates a retained
+safety backup first. See [backup, restore, and recovery](backup-format.md) for the
+format, limits, merge semantics, and step-by-step recovery procedure.
+
+Host-level PostgreSQL and `attachment_data` volume snapshots remain useful as a
+second independent recovery layer, but must be captured together while writes
+are stopped. Do not delete either volume with `docker compose down --volumes`
+unless permanent data loss is intended.

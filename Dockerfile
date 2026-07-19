@@ -29,6 +29,10 @@ RUN apk add --no-cache chromium ca-certificates \
 COPY --from=builder --chown=nextjs:nodejs /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+# Next's standalone file tracing omits Playwright's browsers.json registry even
+# though playwright-core loads it at runtime. Keep the complete pinned runtime
+# beside the traced modules; Chromium itself remains supplied by Alpine.
+COPY --from=dependencies --chown=nextjs:nodejs /app/node_modules/playwright-core ./node_modules/playwright-core
 USER nextjs
 EXPOSE 3000
 CMD ["node", "server.js"]
