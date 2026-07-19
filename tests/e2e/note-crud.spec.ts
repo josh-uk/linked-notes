@@ -12,12 +12,11 @@ test("creates, autosaves, reloads, pins, trashes, and restores a note", async ({
   await page.getByRole("button", { name: "Create a new note" }).first().click();
   await expect(page.getByRole("textbox", { name: "Note title" })).toBeVisible();
   await page.getByRole("textbox", { name: "Note title" }).fill(title);
-  await page
-    .getByRole("textbox", { name: "Note content" })
-    .fill("A calm autosaved thought.");
   await expect(
     page.getByRole("status").filter({ hasText: "Unsaved changes" }),
   ).toBeVisible();
+  await page.getByRole("textbox", { name: "Note content" }).click();
+  await page.keyboard.type("A calm autosaved thought.");
   await expect(
     page.getByRole("status").filter({ hasText: "Saved" }),
   ).toBeVisible();
@@ -56,12 +55,11 @@ test("preserves a local draft when optimistic concurrency detects a stale save",
   await page.goto("/");
   await page.getByRole("button", { name: "Create a new note" }).first().click();
   await page.getByRole("textbox", { name: "Note title" }).fill(originalTitle);
-  await page
-    .getByRole("textbox", { name: "Note content" })
-    .fill("Original text");
   await expect(
     page.getByRole("status").filter({ hasText: "Unsaved changes" }),
   ).toBeVisible();
+  await page.getByRole("textbox", { name: "Note content" }).click();
+  await page.keyboard.type("Original text");
   await expect(
     page.getByRole("status").filter({ hasText: "Saved" }),
   ).toBeVisible();
@@ -109,17 +107,20 @@ test("supports keyboard creation and mobile pane navigation", async ({
 }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/");
+  await expect(page.locator(".note-list")).toHaveAttribute(
+    "aria-busy",
+    "false",
+  );
   await page.keyboard.press("Control+n");
   await expect(page.getByRole("textbox", { name: "Note title" })).toBeVisible();
   await page
     .getByRole("textbox", { name: "Note title" })
     .fill("Mobile keyboard note");
-  await page
-    .getByRole("textbox", { name: "Note content" })
-    .fill("Written without a pointer.");
   await expect(
     page.getByRole("status").filter({ hasText: "Unsaved changes" }),
   ).toBeVisible();
+  await page.getByRole("textbox", { name: "Note content" }).click();
+  await page.keyboard.type("Written without a pointer.");
   await expect(
     page.getByRole("status").filter({ hasText: "Saved" }),
   ).toBeVisible();

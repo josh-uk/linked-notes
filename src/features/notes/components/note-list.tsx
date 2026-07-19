@@ -18,6 +18,7 @@ type NoteListProps = {
   activeNoteId: string | null;
   loading: boolean;
   loadingMore: boolean;
+  createDisabled: boolean;
   nextCursor: string | null;
   error: string | null;
   onSelect: (id: string) => void;
@@ -38,6 +39,7 @@ export function NoteList({
   activeNoteId,
   loading,
   loadingMore,
+  createDisabled,
   nextCursor,
   error,
   onSelect,
@@ -83,6 +85,7 @@ export function NoteList({
           className="new-note-button"
           aria-label="Create a new note"
           title="New note (⌘N)"
+          disabled={createDisabled}
           onClick={onCreate}
         >
           <Plus size={18} aria-hidden="true" />
@@ -102,7 +105,7 @@ export function NoteList({
       <div
         ref={listRef}
         className="note-list"
-        role={loading ? undefined : "listbox"}
+        role={!loading && !error && notes.length > 0 ? "listbox" : undefined}
         aria-label={`${viewTitles[view]} list`}
         aria-busy={loading}
         onKeyDown={(event) => {
@@ -147,6 +150,7 @@ export function NoteList({
               <button
                 type="button"
                 className="secondary-button"
+                disabled={createDisabled}
                 onClick={onCreate}
               >
                 Create a note
