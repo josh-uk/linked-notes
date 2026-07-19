@@ -2,6 +2,7 @@
 
 import {
   FolderClosed,
+  HardDrive,
   Hash,
   Pencil,
   Plus,
@@ -26,6 +27,19 @@ type OrganizationDialogProps = {
   organization: OrganizationResponse | null;
   onClose: () => void;
   onChanged: () => Promise<void>;
+};
+
+type StorageReport = {
+  metadataCount: number;
+  storedFileCount: number;
+  missingAttachmentIds: string[];
+  corruptAttachmentIds: string[];
+  orphanedStorageNames: string[];
+  staleStagingNames: string[];
+  repair: null | {
+    orphanedBytes: { deleted: number; missing: number; failed: number };
+    staleStagingFiles: number;
+  };
 };
 
 export function OrganizationDialog({
@@ -55,6 +69,9 @@ export function OrganizationDialog({
   const [pending, setPending] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [storageReport, setStorageReport] = useState<StorageReport | null>(
+    null,
+  );
 
   useEffect(() => {
     const dialog = dialogRef.current;
@@ -152,6 +169,41 @@ export function OrganizationDialog({
       method: "PATCH",
       body: JSON.stringify({ days }),
     });
+  }
+
+  async function checkAttachmentStorage(repairOrphans = false) {
+    setPending(true);
+    setError(null);
+    setMessage(null);
+    try {
+      const response = await fetch("/api/attachments/reconcile", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ repairOrphans }),
+      });
+      const payload = (await response.json()) as StorageReport | ApiError;
+      if (!response.ok || "error" in payload) {
+        throw new Error(
+          "error" in payload
+            ? payload.error.message
+            : "Attachment storage could not be checked",
+        );
+      }
+      setStorageReport(payload);
+      setMessage(
+        repairOrphans
+          ? "Unreferenced attachment bytes were reconciled."
+          : "Attachment storage check complete.",
+      );
+    } catch (storageError) {
+      setError(
+        storageError instanceof Error
+          ? storageError.message
+          : "Attachment storage could not be checked",
+      );
+    } finally {
+      setPending(false);
+    }
   }
 
   function resetFolderForm() {
@@ -489,6 +541,47 @@ export function OrganizationDialog({
             removes expired trashed notes and leaves inbound mentions visibly
             broken.
           </p>
+          <div className="storage-check">
+            <h3>
+              <HardDrive size={16} aria-hidden="true" /> Attachment storage
+            </h3>
+            <p>
+              Verify recorded sizes and checksums, identify missing bytes, and
+              find files that no database row references.
+            </p>
+            <button
+              type="button"
+              disabled={pending}
+              onClick={() => void checkAttachmentStorage(false)}
+            >
+              Check attachment storage
+            </button>
+            {storageReport ? (
+              <div className="storage-report" role="status">
+                <span>{storageReport.metadataCount} metadata rows</span>
+                <span>{storageReport.storedFileCount} stored files</span>
+                <span>
+                  {storageReport.missingAttachmentIds.length} missing ·{" "}
+                  {storageReport.corruptAttachmentIds.length} corrupt
+                </span>
+                <span>
+                  {storageReport.orphanedStorageNames.length} orphaned ·{" "}
+                  {storageReport.staleStagingNames.length} stale uploads
+                </span>
+                {storageReport.orphanedStorageNames.length > 0 ||
+                storageReport.staleStagingNames.length > 0 ? (
+                  <button
+                    type="button"
+                    className="danger-button"
+                    disabled={pending}
+                    onClick={() => void checkAttachmentStorage(true)}
+                  >
+                    Remove unreferenced bytes
+                  </button>
+                ) : null}
+              </div>
+            ) : null}
+          </div>
         </section>
       ) : null}
     </dialog>

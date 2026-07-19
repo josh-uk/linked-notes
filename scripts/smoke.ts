@@ -9,8 +9,13 @@ async function smoke() {
   const payload = (await health.json()) as {
     status?: string;
     database?: string;
+    attachments?: string;
   };
-  if (payload.status !== "ok" || payload.database !== "reachable") {
+  if (
+    payload.status !== "ok" ||
+    payload.database !== "reachable" ||
+    payload.attachments !== "writable"
+  ) {
     throw new Error(`Unexpected health response: ${JSON.stringify(payload)}`);
   }
 

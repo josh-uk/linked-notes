@@ -22,6 +22,7 @@
     "test:watch": "vitest",
     "test:integration": "vitest run --config vitest.integration.config.ts",
     "test:performance": "tsx scripts/measure-search.ts",
+    "test:upload-memory": "tsx scripts/measure-upload-memory.ts",
     "test:e2e": "playwright test",
     "test:smoke": "tsx scripts/smoke.ts",
     "check": "npm run format:check && npm run lint && npm run typecheck && npm run prisma:validate && npm run test && npm run build"

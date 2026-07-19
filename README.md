@@ -6,7 +6,8 @@ The current application includes a desktop-first three-pane workspace with a
 responsive mobile stack, rich-text editing, debounced autosave,
 optimistic-concurrency conflict recovery, nested folders, coloured tags, bulk
 actions, pin/archive/trash lifecycle controls, PostgreSQL full-text search,
-durable `@` links with contextual backlinks, and light, dark, and system themes.
+streamed local attachments with image previews, durable `@` links with contextual
+backlinks, and light, dark, and system themes.
 
 ## Quick start
 
@@ -64,6 +65,14 @@ Run the baseline quality gate with `npm run check`. See [development documentati
   returns it to the archive.
 - Permanent deletion is available only from Trash and requires confirmation.
   Trash retention defaults to **Never** and can be changed in Workspace Settings.
+- Use **Add files**, drop files onto the editor, or paste a clipboard image to
+  attach local content. PNG, JPEG, GIF, and WebP render as safe previews; every
+  type remains downloadable. Upload progress, cancellation, retry, explicit
+  removal, missing-byte states, and attachment-presence filtering are available
+  from the desktop workspace.
+- Workspace Settings can verify attachment sizes/checksums and identify missing,
+  corrupt, staged, or unreferenced bytes. Automatic repair removes only
+  unreferenced bytes; it does not discard missing/corrupt metadata silently.
 - On smaller screens, use the back and menu buttons to move between the editor,
   note list, and workspace navigation.
 
@@ -82,6 +91,7 @@ Linked Notes is single-user software with no authentication. Keep the default lo
 - [Backup format](docs/backup-format.md)
 - [Threat model](docs/threat-model.md)
 - [Performance measurements](docs/performance.md)
+- [Attachment storage and recovery](docs/attachments.md)
 - [Release process](docs/releases.md)
 - [Contributing](CONTRIBUTING.md)
 - [Security policy](SECURITY.md)

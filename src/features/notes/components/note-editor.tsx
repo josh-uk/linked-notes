@@ -18,6 +18,8 @@ import {
 } from "lucide-react";
 import {
   forwardRef,
+  type ClipboardEvent as ReactClipboardEvent,
+  type DragEvent as ReactDragEvent,
   type KeyboardEvent as ReactKeyboardEvent,
   type MouseEvent as ReactMouseEvent,
   useCallback,
@@ -38,6 +40,10 @@ import type {
 } from "../types";
 import { EditorToolbar } from "./editor-toolbar";
 import { BacklinksPanel } from "./backlinks-panel";
+import {
+  AttachmentPanel,
+  type AttachmentPanelHandle,
+} from "./attachment-panel";
 import { PermanentDeleteDialog } from "./permanent-delete-dialog";
 
 type SaveState = "saved" | "unsaved" | "saving" | "error" | "conflict";
@@ -82,6 +88,7 @@ export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
       useState<RecoverableDraft | null>(null);
     const [actionPending, setActionPending] = useState(false);
     const [confirmPermanentDelete, setConfirmPermanentDelete] = useState(false);
+    const [dragActive, setDragActive] = useState(false);
 
     const titleRef = useRef(note.title);
     const contentRef = useRef(note.content);
@@ -93,6 +100,7 @@ export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
     const flushRef = useRef<() => Promise<boolean>>(async () => true);
     const activeNoteIdRef = useRef(note.id);
     const conflictRef = useRef<NoteDetail | null>(null);
+    const attachmentRef = useRef<AttachmentPanelHandle>(null);
 
     const markDirty = useCallback(
       (nextTitle: string, nextContent: EditorDocument) => {
@@ -444,8 +452,54 @@ export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
       openMention(event.target);
     }
 
+    function onAttachmentDrop(event: ReactDragEvent<HTMLElement>) {
+      if (!event.dataTransfer.types.includes("Files")) return;
+      event.preventDefault();
+      setDragActive(false);
+      void attachmentRef.current?.uploadFiles(
+        Array.from(event.dataTransfer.files),
+      );
+    }
+
+    function onAttachmentPaste(event: ReactClipboardEvent<HTMLElement>) {
+      const images = Array.from(event.clipboardData.files).filter((file) =>
+        file.type.startsWith("image/"),
+      );
+      if (images.length === 0) return;
+      event.preventDefault();
+      void attachmentRef.current?.uploadFiles(images);
+    }
+
     return (
-      <section className="editor-pane" aria-labelledby="note-title-label">
+      <section
+        className="editor-pane"
+        aria-labelledby="note-title-label"
+        data-drag-active={dragActive || undefined}
+        onDragEnter={(event) => {
+          if (event.dataTransfer.types.includes("Files")) {
+            event.preventDefault();
+            setDragActive(true);
+          }
+        }}
+        onDragOver={(event) => {
+          if (event.dataTransfer.types.includes("Files"))
+            event.preventDefault();
+        }}
+        onDragLeave={(event) => {
+          if (
+            !event.currentTarget.contains(event.relatedTarget as Node | null)
+          ) {
+            setDragActive(false);
+          }
+        }}
+        onDrop={onAttachmentDrop}
+        onPaste={onAttachmentPaste}
+      >
+        {dragActive ? (
+          <div className="attachment-drop-overlay" role="status">
+            Drop files to attach them to this note
+          </div>
+        ) : null}
         <header className="editor-header">
           <button
             type="button"
@@ -692,6 +746,17 @@ export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
         >
           <EditorContent editor={editor} />
           <BacklinksPanel noteId={note.id} onOpenNote={onOpenLinkedNote} />
+          <AttachmentPanel
+            ref={attachmentRef}
+            noteId={note.id}
+            uploadDisabled={actionPending || Boolean(note.trashedAt)}
+            beforeMutation={flush}
+            getExpectedVersion={() => versionRef.current}
+            onNoteChanged={(changedNote) => {
+              versionRef.current = changedNote.optimisticVersion;
+              onSaved(changedNote);
+            }}
+          />
         </div>
         <PermanentDeleteDialog
           open={confirmPermanentDelete}

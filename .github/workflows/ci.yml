@@ -55,6 +55,7 @@ jobs:
     timeout-minutes: 25
     env:
       DATABASE_URL: postgresql://linked_notes:linked_notes@127.0.0.1:5432/linked_notes
+      ATTACHMENTS_DIR: /tmp/linked-notes-attachments
     services:
       postgres:
         image: postgres:18-alpine

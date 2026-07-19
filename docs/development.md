@@ -18,6 +18,7 @@ npm run prisma:validate
 npm run test
 npm run test:integration
 npm run test:performance # requires an isolated *_performance database
+npm run test:upload-memory # requires the local Docker app
 npm run build
 npm run test:e2e
 docker compose config
@@ -41,6 +42,21 @@ consistency, ranking/highlighting, GIN index presence, and trash retention. The
 desktop Playwright journeys exercise folder/tag management, atomic note
 placement, title/body search, archive/trash/permanent deletion, bulk
 move/tag/archive, crowded-sidebar scrolling, and Axe.
+
+Phase 4 coverage streams representative PDF, DOCX, JSON, PNG, JPEG, and unknown
+binary fixtures through the attachment service and verifies byte-for-byte
+downloads, safe derived MIME, SHA-256, dimensions, optimistic conflicts, limits,
+interruption cleanup, missing/corrupt/orphan reconciliation, and byte removal
+after attachment/note/retention transactions. Desktop Playwright covers picker,
+drop, clipboard image, progress/retry, preview, download headers, filtering,
+confirmation, storage checks, and Axe.
+
+Always point destructive integration runs at a dedicated database, not the Docker
+preview database:
+
+```bash
+DATABASE_URL=postgresql://linked_notes:your-password@127.0.0.1:5432/linked_notes_integration npm run test:integration
+```
 
 For example, when the default ports are already occupied:
 
@@ -74,6 +90,21 @@ The script seeds 10,000 notes plus representative folders, tags, links, and
 attachments; warms and samples ranked full-text search and the main paginated
 list; and prints timing statistics with `EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON)`.
 It is a repeatable regression profile, not a universal latency guarantee.
+
+## Upload memory profile
+
+With the Phase 4 image running in Compose, `npm run test:upload-memory` creates a
+temporary note, streams a deterministic file in 64 KiB chunks, samples the app
+container's memory via `docker stats`, verifies the server checksum, and removes
+the attachment and note. It refuses non-loopback targets and caps its own test at
+100 MiB.
+
+```bash
+APP_URL=http://127.0.0.1:3000 \
+APP_CONTAINER=linked-notes-app-1 \
+UPLOAD_BYTES=100663296 \
+npm run test:upload-memory
+```
 
 ## Dependency pins
 

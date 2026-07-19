@@ -18,6 +18,7 @@ import type {
   SortDirection,
 } from "@/features/notes/types";
 import { prisma } from "@/server/db";
+import { deleteStoredFiles } from "@/server/attachments/attachment-storage";
 
 import { deriveEditorDocument } from "./derive-document";
 import { NoteDomainError } from "./note-errors";
@@ -398,19 +399,13 @@ export async function deleteNotePermanently(
 ): Promise<{ id: string; deleted: true }> {
   noteIdSchema.parse(id);
   const input = permanentDeleteInputSchema.parse(value);
-  return prisma.$transaction(async (transaction) => {
-    const deleted = await transaction.note.deleteMany({
-      where: {
-        id,
-        optimisticVersion: input.expectedVersion,
-        trashedAt: { not: null },
-      },
-    });
-    if (deleted.count === 1) return { id, deleted: true as const };
-
+  const storageNames = await prisma.$transaction(async (transaction) => {
     const current = await transaction.note.findUnique({
       where: { id },
-      include: noteMetadataInclude,
+      include: {
+        ...noteMetadataInclude,
+        attachments: { select: { storageName: true } },
+      },
     });
     if (!current)
       throw new NoteDomainError("NOTE_NOT_FOUND", "Note not found", 404);
@@ -430,9 +425,14 @@ export async function deleteNotePermanently(
         },
       );
     }
-    await throwMissingOrConflict(transaction, id);
-    throw new Error("Unreachable permanent-delete state");
+    if (current.optimisticVersion !== input.expectedVersion) {
+      await throwMissingOrConflict(transaction, id);
+    }
+    await transaction.note.delete({ where: { id } });
+    return current.attachments.map(({ storageName }) => storageName);
   });
+  await deleteStoredFiles(storageNames);
+  return { id, deleted: true };
 }
 
 async function detailFromTransaction(
