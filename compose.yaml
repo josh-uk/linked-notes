@@ -14,9 +14,11 @@ services:
       timeout: 5s
       retries: 12
       start_period: 10s
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql
-    networks: [private]
+    networks: [frontend, private]
 
   migrate:
     build:
