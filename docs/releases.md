@@ -87,7 +87,8 @@ as an upgrade or rollback command.
    upgrade, migration, recovery, security, and release docs in one release PR.
 2. Run the documented quality, integration, migration, browser, Compose, and
    release-image checks. The release-image proof must pass for local/native
-   architecture; GitHub proves both amd64 and arm64 under QEMU.
+   architecture; GitHub proves amd64 and arm64 on matching native hosted
+   runners.
 3. Merge only after every required PR check passes. Wait for the `Security` and
    `Post-merge image` workflows on the merge commit, and record the immutable
    `master-<short-sha>` app/migration digests.

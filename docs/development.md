@@ -160,6 +160,9 @@ The script creates uniquely named disposable containers, volumes, and an
 attachment writes, PDF output, portable backup/replace restore, app replacement
 persistence, and a denied outbound probe; then removes only those named
 resources. GitHub repeats it for amd64 and arm64 before any image is published.
+Each candidate runs on the matching native `ubuntu-24.04` hosted architecture
+so Chromium, Prisma, and the complete runtime journey are proven without CPU
+emulation.
 On Docker Desktop a stuck first `docker start` client is killed and retried by
 the harness without touching unrelated containers.
 
