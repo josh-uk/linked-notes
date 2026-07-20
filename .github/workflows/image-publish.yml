@@ -236,7 +236,10 @@ jobs:
           if [ -f "$MIGRATE_PROVENANCE" ]; then cp "$MIGRATE_PROVENANCE" release-assets/linked-notes-migrate.provenance.jsonl; fi
           if [ -f "$APP_SBOM_ATTESTATION" ]; then cp "$APP_SBOM_ATTESTATION" release-assets/linked-notes.sbom-attestation.jsonl; fi
           if [ -f "$MIGRATE_SBOM_ATTESTATION" ]; then cp "$MIGRATE_SBOM_ATTESTATION" release-assets/linked-notes-migrate.sbom-attestation.jsonl; fi
-          sha256sum release-assets/* > release-assets/SHA256SUMS
+          (
+            cd release-assets
+            sha256sum -- * > SHA256SUMS
+          )
       - name: Retain release assets
         if: inputs.channel == 'release'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
