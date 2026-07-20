@@ -166,9 +166,15 @@ the harness without touching unrelated containers.
 ## Security scans
 
 Pull requests and `master` run full-history Gitleaks, high-severity npm audit,
-CodeQL, and a Trivy scan of the exact production runner target. GitHub Actions
-and scanner versions are pinned; high/critical image findings with available
-fixes fail the workflow and the JSON result is retained as an artifact.
+the pinned `eslint-plugin-security` JavaScript/TypeScript ruleset, and a Trivy
+scan of the exact production runner target. GitHub Actions and scanner versions
+are pinned; any enabled static-analysis warning and any high/critical image
+finding with an available fix fails the workflow. Machine-readable ESLint and
+Trivy JSON results are retained as artifacts. Three high-noise syntax heuristics
+for dynamic filesystem paths, regular expressions, and indexed lookups are
+explicitly disabled in the ESLint configuration; the equivalent trust
+boundaries are covered by path-containment, archive-validation, search, and
+identifier regression tests.
 
 Equivalent local checks, using the versions pinned in
 `.github/workflows/security.yml`, are:
@@ -176,9 +182,16 @@ Equivalent local checks, using the versions pinned in
 ```bash
 gitleaks git --redact --verbose
 npm audit --audit-level=high
+npm run lint:security
 docker build --target runner -t linked-notes:security-scan .
 trivy image --scanners vuln --pkg-types os,library --ignore-unfixed --severity HIGH,CRITICAL --exit-code 1 linked-notes:security-scan
 ```
+
+GitHub CodeQL is not supported for this private, personal-account repository
+without GitHub Code Security. The self-contained ESLint security scan is the
+strongest supported source-analysis equivalent here and does not depend on an
+unavailable code-scanning API. If the repository later moves to a supported
+organisation plan or becomes public, add CodeQL alongside this gate.
 
 ## Dependency pins
 
