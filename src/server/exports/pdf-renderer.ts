@@ -168,6 +168,7 @@ export async function renderPrintHtmlPdf(html: string) {
     if (error instanceof NoteDomainError) throw error;
     console.warn("pdf_renderer_failed", {
       error: error instanceof Error ? error.name : "unknown",
+      message: error instanceof Error ? error.message.slice(0, 500) : undefined,
     });
     throw new NoteDomainError(
       "PDF_RENDERER_UNAVAILABLE",
