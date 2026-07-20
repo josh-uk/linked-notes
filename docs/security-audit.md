@@ -72,12 +72,12 @@ mapped to generic fallbacks, and the fatal render boundary logs only
   tests cover those trust boundaries. Dependabot covers npm, Actions, and
   Docker pins.
 
-CodeQL is unavailable for a private repository owned by a personal account
-without GitHub Code Security. The ESLint security ruleset is the strongest
-supported self-contained source-analysis equivalent and avoids treating an
-unavailable GitHub feature endpoint as a successful scan. Add CodeQL as a
-separate gate if the repository later becomes public or moves to an
-organisation with GitHub Code Security enabled.
+At the time of the Phase 6 audit, CodeQL was unavailable because the repository
+was private and owned by a personal account without GitHub Code Security. The
+ESLint security ruleset was therefore added as the required self-contained
+source-analysis gate rather than treating an unavailable GitHub endpoint as a
+successful scan. The repository is now public, so CodeQL can be added later as
+an independent GitHub-native signal without weakening or replacing this gate.
 
 Scanner actions are pinned to immutable commits. Scan results and artifact links
 are recorded on the phase issue after the pull request gates pass; scanner noise
