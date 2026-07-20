@@ -1,5 +1,11 @@
 import { defineConfig, devices } from "@playwright/test";
 
+const serverPort = process.env.PLAYWRIGHT_PORT ?? "3000";
+if (!/^[1-9][0-9]{0,4}$/.test(serverPort) || Number(serverPort) > 65_535) {
+  throw new Error("PLAYWRIGHT_PORT must be a valid TCP port");
+}
+const serverUrl = `http://127.0.0.1:${serverPort}`;
+
 export default defineConfig({
   testDir: "./tests/e2e",
   fullyParallel: false,
@@ -13,15 +19,17 @@ export default defineConfig({
       ]
     : "list",
   use: {
-    baseURL: process.env.PLAYWRIGHT_BASE_URL ?? "http://127.0.0.1:3000",
+    baseURL: process.env.PLAYWRIGHT_BASE_URL ?? serverUrl,
     trace: "on-first-retry",
   },
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
   webServer: process.env.PLAYWRIGHT_EXTERNAL_SERVER
     ? undefined
     : {
-        command: "npm run dev",
-        url: "http://127.0.0.1:3000",
+        command: process.env.CI
+          ? `npm run build && npm run start -- --hostname 127.0.0.1 --port ${serverPort}`
+          : `npm run dev -- --hostname 127.0.0.1 --port ${serverPort}`,
+        url: serverUrl,
         reuseExistingServer: !process.env.CI,
         timeout: 120_000,
       },

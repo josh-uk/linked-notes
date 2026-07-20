@@ -174,3 +174,20 @@ serializable and therefore becomes visible as one complete workspace state. See
 [backup, restore, and recovery](backup-format.md).
 
 See [ADR 0001](adr/0001-local-monolith.md), [ADR 0002](adr/0002-versioned-editor-json.md), and [ADR 0003](adr/0003-durable-note-links.md).
+
+## Delivery architecture
+
+Pull requests run quality/PostgreSQL integration/migration tests, production
+browser journeys, and an amd64 release-image proof. Security runs independently
+for pull requests, `master`, and the weekly schedule. A successful current
+`master` security run triggers the same full validation, both amd64 and arm64
+image proofs, then publishes immutable app and migration images. A superseded
+commit is never published.
+
+Stable SemVer tags are accepted only when the package/changelog version matches
+and the tag commit is the current `master`. Release validation then builds the
+same two Dockerfile targets for both architectures, proves clean migration,
+runtime health, PDF, backup/replace restore, persistence, and disabled outbound
+networking, and publishes version/major/minor/latest manifests. BuildKit attaches
+maximum-mode provenance and SPDX SBOMs; GitHub-signed attestations are added when
+the private account plan supports them. See [releases and upgrades](releases.md).

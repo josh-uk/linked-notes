@@ -1,0 +1,65 @@
+name: Post-merge image
+
+on:
+  workflow_run:
+    workflows: [Security]
+    branches: [master]
+    types: [completed]
+
+concurrency:
+  group: post-merge-image-master
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  source:
+    name: Confirm current verified master
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push'
+    runs-on: ubuntu-latest
+    outputs:
+      current: ${{ steps.current.outputs.current }}
+      sha: ${{ github.event.workflow_run.head_sha }}
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 0
+      - id: current
+        name: Reject a superseded security run
+        env:
+          SOURCE_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          git fetch origin master
+          if [ "$(git rev-parse origin/master)" = "$SOURCE_SHA" ]; then
+            echo "current=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "current=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  validation:
+    name: Revalidate merged commit
+    needs: source
+    if: needs.source.outputs.current == 'true'
+    permissions:
+      contents: read
+    uses: ./.github/workflows/ci.yml
+    with:
+      source_sha: ${{ needs.source.outputs.sha }}
+
+  publish:
+    name: Publish immutable master image
+    needs: [source, validation]
+    if: needs.source.outputs.current == 'true' && needs.validation.result == 'success'
+    permissions:
+      attestations: write
+      contents: read
+      id-token: write
+      packages: write
+    uses: ./.github/workflows/image-publish.yml
+    with:
+      source_sha: ${{ needs.source.outputs.sha }}
+      channel: master

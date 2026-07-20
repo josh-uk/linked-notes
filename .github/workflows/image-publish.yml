@@ -1,0 +1,246 @@
+name: Publish verified images
+
+on:
+  workflow_call:
+    inputs:
+      source_sha:
+        description: Exact verified commit to build
+        required: true
+        type: string
+      channel:
+        description: master or release
+        required: true
+        type: string
+      release_tag:
+        description: Validated vX.Y.Z tag for a release build
+        required: false
+        type: string
+    outputs:
+      app_digest:
+        description: Published multi-architecture application digest
+        value: ${{ jobs.publish.outputs.app_digest }}
+      migrate_digest:
+        description: Published multi-architecture migration digest
+        value: ${{ jobs.publish.outputs.migrate_digest }}
+
+permissions:
+  contents: read
+
+jobs:
+  candidate-smoke:
+    name: Release image smoke (${{ matrix.architecture }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - platform: linux/amd64
+            architecture: amd64
+          - platform: linux/arm64
+            architecture: arm64
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          ref: ${{ inputs.source_sha }}
+      - uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+      - name: Build migration candidate
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: .
+          target: migrate
+          platforms: ${{ matrix.platform }}
+          load: true
+          push: false
+          tags: linked-notes-migrate:release-candidate
+          cache-from: type=gha,scope=candidate-migrate-${{ matrix.architecture }}
+          cache-to: type=gha,mode=max,scope=candidate-migrate-${{ matrix.architecture }}
+      - name: Build application candidate
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: .
+          target: runner
+          platforms: ${{ matrix.platform }}
+          load: true
+          push: false
+          tags: linked-notes:release-candidate
+          cache-from: type=gha,scope=candidate-app-${{ matrix.architecture }}
+          cache-to: type=gha,mode=max,scope=candidate-app-${{ matrix.architecture }}
+      - name: Prove clean install, persistence, PDF, restore, and offline runtime
+        env:
+          APP_IMAGE: linked-notes:release-candidate
+          MIGRATE_IMAGE: linked-notes-migrate:release-candidate
+          TARGET_PLATFORM: ${{ matrix.platform }}
+        run: node scripts/release-image-smoke.mjs
+
+  publish:
+    name: Publish multi-architecture images
+    needs: candidate-smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      attestations: write
+      contents: read
+      id-token: write
+      packages: write
+    outputs:
+      app_digest: ${{ steps.app.outputs.digest }}
+      migrate_digest: ${{ steps.migrate.outputs.digest }}
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          ref: ${{ inputs.source_sha }}
+      - id: source
+        name: Derive immutable source tag
+        env:
+          SOURCE_SHA: ${{ inputs.source_sha }}
+        run: echo "short_sha=${SOURCE_SHA:0:7}" >> "$GITHUB_OUTPUT"
+      - uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - id: app_metadata
+        uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # v5
+        with:
+          images: ghcr.io/${{ github.repository }}
+          tags: |
+            type=raw,value=master-${{ steps.source.outputs.short_sha }},enable=${{ inputs.channel == 'master' }}
+            type=semver,pattern={{version}},value=${{ inputs.release_tag }},enable=${{ inputs.channel == 'release' }}
+            type=semver,pattern={{major}}.{{minor}},value=${{ inputs.release_tag }},enable=${{ inputs.channel == 'release' }}
+            type=semver,pattern={{major}},value=${{ inputs.release_tag }},enable=${{ inputs.channel == 'release' }}
+            type=raw,value=latest,enable=${{ inputs.channel == 'release' }}
+      - id: migrate_metadata
+        uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # v5
+        with:
+          images: ghcr.io/${{ github.repository }}-migrate
+          tags: |
+            type=raw,value=master-${{ steps.source.outputs.short_sha }},enable=${{ inputs.channel == 'master' }}
+            type=semver,pattern={{version}},value=${{ inputs.release_tag }},enable=${{ inputs.channel == 'release' }}
+            type=semver,pattern={{major}}.{{minor}},value=${{ inputs.release_tag }},enable=${{ inputs.channel == 'release' }}
+            type=semver,pattern={{major}},value=${{ inputs.release_tag }},enable=${{ inputs.channel == 'release' }}
+            type=raw,value=latest,enable=${{ inputs.channel == 'release' }}
+      - id: migrate
+        name: Publish migration image
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: .
+          target: migrate
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.migrate_metadata.outputs.tags }}
+          labels: ${{ steps.migrate_metadata.outputs.labels }}
+          sbom: true
+          provenance: mode=max
+          cache-from: type=gha,scope=publish-migrate
+          cache-to: type=gha,mode=max,scope=publish-migrate
+      - id: app
+        name: Publish application image
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: .
+          target: runner
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.app_metadata.outputs.tags }}
+          labels: ${{ steps.app_metadata.outputs.labels }}
+          sbom: true
+          provenance: mode=max
+          cache-from: type=gha,scope=publish-app
+          cache-to: type=gha,mode=max,scope=publish-app
+      - name: Generate application SPDX SBOM
+        if: inputs.channel == 'release'
+        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0
+        with:
+          image: ghcr.io/${{ github.repository }}@${{ steps.app.outputs.digest }}
+          registry-username: ${{ github.actor }}
+          registry-password: ${{ secrets.GITHUB_TOKEN }}
+          format: spdx-json
+          output-file: linked-notes.spdx.json
+          upload-artifact: false
+          upload-release-assets: false
+      - name: Generate migration SPDX SBOM
+        if: inputs.channel == 'release'
+        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0
+        with:
+          image: ghcr.io/${{ github.repository }}-migrate@${{ steps.migrate.outputs.digest }}
+          registry-username: ${{ github.actor }}
+          registry-password: ${{ secrets.GITHUB_TOKEN }}
+          format: spdx-json
+          output-file: linked-notes-migrate.spdx.json
+          upload-artifact: false
+          upload-release-assets: false
+      - id: app_provenance
+        name: Record GitHub application provenance where available
+        if: inputs.channel == 'release'
+        continue-on-error: true
+        uses: actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a # v3
+        with:
+          subject-name: ghcr.io/${{ github.repository }}
+          subject-digest: ${{ steps.app.outputs.digest }}
+          push-to-registry: true
+      - id: migrate_provenance
+        name: Record GitHub migration provenance where available
+        if: inputs.channel == 'release'
+        continue-on-error: true
+        uses: actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a # v3
+        with:
+          subject-name: ghcr.io/${{ github.repository }}-migrate
+          subject-digest: ${{ steps.migrate.outputs.digest }}
+          push-to-registry: true
+      - id: app_sbom_attestation
+        name: Record GitHub application SBOM attestation where available
+        if: inputs.channel == 'release'
+        continue-on-error: true
+        uses: actions/attest-sbom@4651f806c01d8637787e274ac3bdf724ef169f34 # v3
+        with:
+          subject-name: ghcr.io/${{ github.repository }}
+          subject-digest: ${{ steps.app.outputs.digest }}
+          sbom-path: linked-notes.spdx.json
+          push-to-registry: true
+      - id: migrate_sbom_attestation
+        name: Record GitHub migration SBOM attestation where available
+        if: inputs.channel == 'release'
+        continue-on-error: true
+        uses: actions/attest-sbom@4651f806c01d8637787e274ac3bdf724ef169f34 # v3
+        with:
+          subject-name: ghcr.io/${{ github.repository }}-migrate
+          subject-digest: ${{ steps.migrate.outputs.digest }}
+          sbom-path: linked-notes-migrate.spdx.json
+          push-to-registry: true
+      - name: Assemble release evidence
+        if: inputs.channel == 'release'
+        env:
+          APP_DIGEST: ${{ steps.app.outputs.digest }}
+          APP_PROVENANCE: ${{ steps.app_provenance.outputs['bundle-path'] }}
+          APP_PROVENANCE_OUTCOME: ${{ steps.app_provenance.outcome }}
+          APP_SBOM_ATTESTATION: ${{ steps.app_sbom_attestation.outputs['bundle-path'] }}
+          APP_SBOM_OUTCOME: ${{ steps.app_sbom_attestation.outcome }}
+          MIGRATE_DIGEST: ${{ steps.migrate.outputs.digest }}
+          MIGRATE_PROVENANCE: ${{ steps.migrate_provenance.outputs['bundle-path'] }}
+          MIGRATE_PROVENANCE_OUTCOME: ${{ steps.migrate_provenance.outcome }}
+          MIGRATE_SBOM_ATTESTATION: ${{ steps.migrate_sbom_attestation.outputs['bundle-path'] }}
+          MIGRATE_SBOM_OUTCOME: ${{ steps.migrate_sbom_attestation.outcome }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+          SOURCE_SHA: ${{ inputs.source_sha }}
+        run: |
+          mkdir release-assets
+          cp linked-notes.spdx.json release-assets/
+          cp linked-notes-migrate.spdx.json release-assets/
+          node -e 'const fs=require("node:fs"); const value={releaseTag:process.env.RELEASE_TAG,sourceSha:process.env.SOURCE_SHA,images:{application:{name:`ghcr.io/${process.env.GITHUB_REPOSITORY}`,digest:process.env.APP_DIGEST},migration:{name:`ghcr.io/${process.env.GITHUB_REPOSITORY}-migrate`,digest:process.env.MIGRATE_DIGEST}},githubAttestations:{applicationProvenance:process.env.APP_PROVENANCE_OUTCOME,applicationSbom:process.env.APP_SBOM_OUTCOME,migrationProvenance:process.env.MIGRATE_PROVENANCE_OUTCOME,migrationSbom:process.env.MIGRATE_SBOM_OUTCOME},registryAttestations:"BuildKit mode=max provenance and SPDX SBOM were published for both images"}; fs.writeFileSync("release-assets/release-image-digests.json",JSON.stringify(value,null,2)+"\n")'
+          if [ -f "$APP_PROVENANCE" ]; then cp "$APP_PROVENANCE" release-assets/linked-notes.provenance.jsonl; fi
+          if [ -f "$MIGRATE_PROVENANCE" ]; then cp "$MIGRATE_PROVENANCE" release-assets/linked-notes-migrate.provenance.jsonl; fi
+          if [ -f "$APP_SBOM_ATTESTATION" ]; then cp "$APP_SBOM_ATTESTATION" release-assets/linked-notes.sbom-attestation.jsonl; fi
+          if [ -f "$MIGRATE_SBOM_ATTESTATION" ]; then cp "$MIGRATE_SBOM_ATTESTATION" release-assets/linked-notes-migrate.sbom-attestation.jsonl; fi
+          sha256sum release-assets/* > release-assets/SHA256SUMS
+      - name: Retain release assets
+        if: inputs.channel == 'release'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: release-assets-${{ inputs.release_tag }}
+          path: release-assets
+          if-no-files-found: error
+          retention-days: 90

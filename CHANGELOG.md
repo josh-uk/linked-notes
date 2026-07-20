@@ -4,6 +4,8 @@ All notable changes to Linked Notes will be documented in this file. The format 
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-07-19
+
 ### Added
 
 - Repository, application, database, test, container, documentation, and delivery foundation.
@@ -59,3 +61,10 @@ All notable changes to Linked Notes will be documented in this file. The format 
   restoration, and corrected primary/danger colour contrast.
 - Full-history Gitleaks, high-severity dependency audit, CodeQL, exact-runner
   Trivy image scanning, and a direct PDF-renderer SSRF regression.
+- Clean and earliest-schema migration proofs, private GHCR app/migration images,
+  amd64 and arm64 offline release smoke journeys, immutable post-merge tags,
+  validated SemVer releases, generated release notes, SPDX SBOMs, provenance,
+  scheduled maintenance, and complete operations/upgrade/recovery guidance.
+
+[Unreleased]: https://github.com/josh-uk/linked-notes/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/josh-uk/linked-notes/releases/tag/v1.0.0

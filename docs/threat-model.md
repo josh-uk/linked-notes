@@ -73,7 +73,9 @@ and development-database ports; neither port binds to the LAN by default, and
 application code makes no external runtime requests. Production pages use a
 per-request-nonce CSP plus restrictive browser headers, startup checks validate
 environment/storage/schema assumptions, and full-history secret scanning,
-dependency audit, CodeQL, and exact-runner image scanning gate delivery. Direct
-regressions cover stored XSS, unsafe schemes, private-error redaction, and PDF
-network denial. See the [security and privacy audit](security-audit.md) for the
-test matrix, logging review, scanner policy, and remaining trust assumptions.
+dependency audit, JavaScript/TypeScript security-pattern analysis, and
+exact-runner image scanning gate delivery. Direct regressions cover stored XSS,
+unsafe schemes, private-error redaction, and PDF network denial. See the
+[security and privacy audit](security-audit.md) for the test matrix, logging
+review, scanner policy, account capability limit, and remaining trust
+assumptions.

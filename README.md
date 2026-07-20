@@ -9,7 +9,7 @@ actions, pin/archive/trash lifecycle controls, PostgreSQL full-text search,
 streamed local attachments with image previews, durable `@` links with contextual
 backlinks, and light, dark, and system themes.
 
-## Quick start
+## Quick start from source
 
 Requirements: Docker Engine with Docker Compose v2.
 
@@ -28,6 +28,30 @@ docker compose down
 ```
 
 Do not add `--volumes` unless you deliberately intend to delete all local application data.
+
+## Install a released image
+
+The repository and GHCR packages are private, so first authenticate an account
+that can read `josh-uk/linked-notes`. Check out the matching release source so
+Compose configuration and images stay in lockstep:
+
+```bash
+git clone https://github.com/josh-uk/linked-notes.git
+cd linked-notes
+git checkout v1.0.0
+cp .env.example .env
+# Replace the password in both POSTGRES_PASSWORD and DATABASE_URL.
+# Set APP_IMAGE and MIGRATE_IMAGE in .env to the matching 1.0.0 GHCR tags.
+docker login ghcr.io
+docker compose pull app migrate
+docker compose up -d
+docker compose ps
+```
+
+Use `ghcr.io/josh-uk/linked-notes:1.0.0` and
+`ghcr.io/josh-uk/linked-notes-migrate:1.0.0`. The separate migration image must
+complete before the read-only app starts. See [operations](docs/operations.md)
+and [releases and upgrades](docs/releases.md) before changing versions.
 
 ## Local development
 
@@ -106,7 +130,9 @@ upgrades and keep a verified copy outside the Docker volumes. See
 - [Security and privacy audit](docs/security-audit.md)
 - [Performance measurements](docs/performance.md)
 - [Attachment storage and recovery](docs/attachments.md)
-- [Release process](docs/releases.md)
+- [Operations](docs/operations.md)
+- [Troubleshooting](docs/troubleshooting.md)
+- [Releases and upgrades](docs/releases.md)
 - [Contributing](CONTRIBUTING.md)
 - [Security policy](SECURITY.md)
 
