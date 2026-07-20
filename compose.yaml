@@ -21,6 +21,7 @@ services:
     networks: [frontend, private]
 
   migrate:
+    image: ${MIGRATE_IMAGE:-linked-notes-migrate:local}
     build:
       context: .
       target: migrate
@@ -33,6 +34,7 @@ services:
     networks: [private]
 
   app:
+    image: ${APP_IMAGE:-linked-notes-app:local}
     build:
       context: .
       target: runner

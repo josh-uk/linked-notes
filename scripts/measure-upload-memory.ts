@@ -167,11 +167,18 @@ async function containerMemoryMiB(name: string) {
     name,
   ]);
   const used = output.split("/", 1)[0]!.trim();
-  const match = /^(\d+(?:\.\d+)?)\s*(KiB|MiB|GiB)$/.exec(used);
-  if (!match) throw new Error(`Could not parse container memory: ${used}`);
-  const value = Number(match[1]);
-  if (match[2] === "KiB") return round(value / 1_024);
-  if (match[2] === "GiB") return round(value * 1_024);
+  const parts = used.split(/\s+/);
+  const value = Number(parts[0]);
+  const unit = parts[1];
+  if (
+    parts.length !== 2 ||
+    !Number.isFinite(value) ||
+    !["KiB", "MiB", "GiB"].includes(unit ?? "")
+  ) {
+    throw new Error(`Could not parse container memory: ${used}`);
+  }
+  if (unit === "KiB") return round(value / 1_024);
+  if (unit === "GiB") return round(value * 1_024);
   return value;
 }
 

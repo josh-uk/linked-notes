@@ -144,3 +144,12 @@ tested independent backup exists.
 
 Never use `docker compose down --volumes` as a recovery step: it permanently
 removes the live PostgreSQL and attachment volumes.
+
+## Upgrade checkpoint
+
+Before changing app or migration image tags, run storage reconciliation, create
+a fresh portable backup, record its response checksum, copy it off-host, and
+retain the current image digests. For a host snapshot, stop writes and capture
+PostgreSQL plus `attachment_data` together. A database-only or attachment-only
+snapshot is not a recoverable Linked Notes workspace. Follow the tested upgrade
+and coordinated rollback procedure in [releases](releases.md).

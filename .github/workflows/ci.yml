@@ -4,6 +4,12 @@ on:
   pull_request:
     branches: [master]
   workflow_dispatch:
+  workflow_call:
+    inputs:
+      source_sha:
+        description: Exact commit to validate when called by delivery workflows
+        required: false
+        type: string
 
 concurrency:
   group: ci-${{ github.event.pull_request.number || github.ref }}
@@ -19,6 +25,7 @@ jobs:
     timeout-minutes: 20
     env:
       DATABASE_URL: postgresql://linked_notes:linked_notes@127.0.0.1:5432/linked_notes
+      MIGRATION_TEST_DATABASE_URL: postgresql://linked_notes:linked_notes@127.0.0.1:5432/postgres
     services:
       postgres:
         image: postgres:18-alpine
@@ -35,6 +42,8 @@ jobs:
           --health-retries 12
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          ref: ${{ inputs.source_sha || github.sha }}
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: 24
@@ -47,6 +56,8 @@ jobs:
       - run: npm run test
       - run: npx prisma migrate deploy
       - run: npm run test:integration
+      - run: npm run test:migrations
+      - run: npm run test:release-audit
       - run: npm run build
 
   browser:
@@ -72,6 +83,8 @@ jobs:
           --health-retries 12
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          ref: ${{ inputs.source_sha || github.sha }}
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: 24
@@ -93,14 +106,35 @@ jobs:
   container:
     name: Container build
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 35
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          ref: ${{ inputs.source_sha || github.sha }}
       - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
-      - uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+      - name: Build migration image
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: .
+          target: migrate
+          load: true
+          push: false
+          tags: linked-notes-migrate:release-candidate
+          cache-from: type=gha,scope=ci-migrate
+          cache-to: type=gha,mode=max,scope=ci-migrate
+      - name: Build application image
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
         with:
           context: .
           target: runner
+          load: true
           push: false
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          tags: linked-notes:release-candidate
+          cache-from: type=gha,scope=ci-app
+          cache-to: type=gha,mode=max,scope=ci-app
+      - name: Prove production image journey without outbound runtime access
+        env:
+          APP_IMAGE: linked-notes:release-candidate
+          MIGRATE_IMAGE: linked-notes-migrate:release-candidate
+          TARGET_PLATFORM: linux/amd64
+        run: node scripts/release-image-smoke.mjs

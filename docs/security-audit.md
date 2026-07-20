@@ -64,8 +64,20 @@ mapped to generic fallbacks, and the fatal render boundary logs only
 - Trivy builds the exact runner target, scans OS and library packages, ignores
   findings without an available fix, fails on fixed high/critical findings, and
   retains a JSON report for 14 days.
-- CodeQL scans JavaScript/TypeScript and retains SARIF for 14 days. Dependabot
-  covers npm, Actions, and Docker pins.
+- The pinned `eslint-plugin-security` ruleset scans JavaScript/TypeScript,
+  treats every enabled finding as a failed gate, and retains machine-readable
+  JSON for 14 days. Its high-noise non-literal path, non-literal regular
+  expression, and generic object-index heuristics are explicitly disabled;
+  dedicated traversal, archive-validation, search, and identifier regression
+  tests cover those trust boundaries. Dependabot covers npm, Actions, and
+  Docker pins.
+
+CodeQL is unavailable for a private repository owned by a personal account
+without GitHub Code Security. The ESLint security ruleset is the strongest
+supported self-contained source-analysis equivalent and avoids treating an
+unavailable GitHub feature endpoint as a successful scan. Add CodeQL as a
+separate gate if the repository later becomes public or moves to an
+organisation with GitHub Code Security enabled.
 
 Scanner actions are pinned to immutable commits. Scan results and artifact links
 are recorded on the phase issue after the pull request gates pass; scanner noise

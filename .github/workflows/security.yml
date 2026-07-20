@@ -24,13 +24,18 @@ jobs:
     name: Secret scan
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
           fetch-depth: 0
-      - uses: gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e # v3.0.0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Scan complete repository history without API dependencies
+        run: >-
+          docker run --rm
+          --volume "$GITHUB_WORKSPACE:/repo:ro"
+          ghcr.io/gitleaks/gitleaks@sha256:e1b35e12a8c6fa8901f060459cfb6b2fc4c484d3afbe3b029733a3bbfab07055
+          git --no-banner --redact --verbose --log-opts=--all /repo
 
   dependency-audit:
     name: Dependency audit
@@ -82,24 +87,26 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
-  codeql:
-    name: CodeQL
+  static-analysis:
+    name: Static analysis
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 10
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
-      - uses: github/codeql-action/init@eec0bff2f6c15bf3f1e8a0152f94d17664a06a06 # v4
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
-          languages: javascript-typescript
-      - uses: github/codeql-action/analyze@eec0bff2f6c15bf3f1e8a0152f94d17664a06a06 # v4
-        with:
-          output: codeql-results
-          upload: never
-      - name: Retain CodeQL SARIF
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Scan JavaScript and TypeScript security patterns
+        run: npm run lint:security
+      - name: Retain static-analysis report
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: codeql-sarif
-          path: codeql-results/*.sarif
+          name: eslint-security-report
+          path: eslint-security-results.json
           if-no-files-found: error
           retention-days: 14
