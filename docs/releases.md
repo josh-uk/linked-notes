@@ -116,7 +116,7 @@ as an upgrade or rollback command.
 docker buildx imagetools inspect ghcr.io/josh-uk/linked-notes:1.0.0
 docker buildx imagetools inspect ghcr.io/josh-uk/linked-notes-migrate:1.0.0
 gh release download v1.0.0 --repo josh-uk/linked-notes --dir release-evidence
-sha256sum -c release-evidence/SHA256SUMS
+(cd release-evidence && sha256sum -c SHA256SUMS)
 gh attestation verify oci://ghcr.io/josh-uk/linked-notes:1.0.0 \
   --repo josh-uk/linked-notes \
   --signer-workflow josh-uk/linked-notes/.github/workflows/image-publish.yml
