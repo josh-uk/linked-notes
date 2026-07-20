@@ -1,25 +1,120 @@
 # Linked Notes
 
-Linked Notes is a deliberately simple, local-only note-taking application with durable links between notes. It combines a calm writing experience with local PostgreSQL storage, persistent attachments, portable backups, and no account, telemetry, cloud service, or runtime internet dependency.
+A calm, local-first notes workspace with durable links between ideas.
 
-The current application includes a desktop-first three-pane workspace with a
-responsive mobile stack, rich-text editing, debounced autosave,
-optimistic-concurrency conflict recovery, nested folders, coloured tags, bulk
-actions, pin/archive/trash lifecycle controls, PostgreSQL full-text search,
-streamed local attachments with image previews, durable `@` links with contextual
-backlinks, and light, dark, and system themes.
+[![Security](https://github.com/josh-uk/linked-notes/actions/workflows/security.yml/badge.svg?branch=master)](https://github.com/josh-uk/linked-notes/actions/workflows/security.yml)
+[![Release](https://github.com/josh-uk/linked-notes/actions/workflows/release.yml/badge.svg)](https://github.com/josh-uk/linked-notes/actions/workflows/release.yml)
+[![Latest release](https://img.shields.io/github/v/release/josh-uk/linked-notes)](https://github.com/josh-uk/linked-notes/releases/latest)
+[![License: MIT](https://img.shields.io/badge/license-MIT-8b6f47.svg)](LICENSE)
 
-## Quick start from source
+Linked Notes is a self-hosted, single-user note-taking application for people
+who want a capable desktop writing environment without an account, telemetry,
+cloud service, or runtime internet dependency. Notes, attachments, links, and
+backlinks stay in a local PostgreSQL-backed workspace and can be exported as a
+portable backup.
+
+![Linked Notes desktop workspace showing a release checklist, linked note, folders, and tags](docs/screenshots/linked-notes-desktop.jpg)
+
+## Highlights
+
+- **Desktop-first workspace.** A stable three-pane layout keeps navigation,
+  note selection, and writing visible together, with a responsive tablet and
+  mobile flow when the window narrows.
+- **Durable note links.** Type `@` to connect a note. Links follow title changes,
+  backlinks include nearby context, and removed targets remain explicit rather
+  than silently disappearing.
+- **Focused rich-text editing.** Headings, lists, checklists, quotes, code,
+  links, undo/redo, keyboard creation, debounced autosave, and conflict recovery
+  are built in.
+- **Organisation and retrieval.** Nested folders, coloured tags, pinning,
+  archive/trash lifecycles, bulk actions, attachment filters, and PostgreSQL
+  full-text search scale with the workspace.
+- **Local files and exports.** Streamed attachments, safe image previews,
+  Markdown and deterministic PDF exports, storage reconciliation, and complete
+  portable backups are available from the desktop workspace.
+- **Operationally boring.** Docker Compose, loopback-only defaults, a read-only
+  application container, one-shot migrations, health checks, multi-architecture
+  images, SBOMs, checksums, and rehearsed restore paths make the workspace
+  straightforward to own.
+
+<p align="center">
+  <img src="docs/screenshots/linked-notes-mobile.jpg" width="390" alt="Linked Notes responsive mobile note list" />
+</p>
+
+## Quick start
+
+### Run from source
 
 Requirements: Docker Engine with Docker Compose v2.
 
 ```bash
+git clone https://github.com/josh-uk/linked-notes.git
+cd linked-notes
 cp .env.example .env
-# Replace the example password in both POSTGRES_PASSWORD and DATABASE_URL.
-docker compose up --build
 ```
 
-Open <http://127.0.0.1:3000>. The application binds to loopback by default. PostgreSQL and attachment bytes live in the `postgres_data` and `attachment_data` named volumes.
+Replace the example password in both `POSTGRES_PASSWORD` and `DATABASE_URL`,
+then start the stack:
+
+```bash
+docker compose up --build -d
+docker compose ps
+```
+
+Open <http://127.0.0.1:3000>. PostgreSQL and attachment bytes live in the
+`postgres_data` and `attachment_data` named volumes.
+
+### Run the released containers
+
+The public release images support Linux amd64 and arm64. Check out the matching
+release source so the Compose file and both images stay in lockstep:
+
+```bash
+git clone --branch v1.0.0 --depth 1 https://github.com/josh-uk/linked-notes.git
+cd linked-notes
+cp .env.example .env
+```
+
+Set a unique password in `.env`, then set these matching image values:
+
+```dotenv
+APP_IMAGE=ghcr.io/josh-uk/linked-notes:1.0.0
+MIGRATE_IMAGE=ghcr.io/josh-uk/linked-notes-migrate:1.0.0
+```
+
+Pull and start the public images; no GitHub sign-in is required:
+
+```bash
+docker compose pull app migrate
+docker compose up -d
+docker compose ps
+```
+
+The migration image must complete successfully before the read-only app starts.
+For upgrades and recovery, follow [releases and upgrades](docs/releases.md) and
+[operations](docs/operations.md).
+
+## Using the workspace
+
+- Choose **New** or press <kbd>Ctrl</kbd>/<kbd>Cmd</kbd>+<kbd>N</kbd> to create a
+  note. The save indicator reports unsaved, saving, saved, failed, and conflict
+  states.
+- Type `@` to search active notes and insert a durable link. Select a mention to
+  open its target; expand **Backlinks** to review source notes and context.
+- Press <kbd>Ctrl</kbd>/<kbd>Cmd</kbd>+<kbd>K</kbd> to focus full-text search.
+  Search combines with folder, tag, lifecycle, and attachment filters.
+- Create nested folders and coloured tags from the left sidebar. Selection mode
+  applies move, tag, pin, archive, restore, or trash actions to up to 100 notes
+  transactionally.
+- Add files with the picker, drag and drop, or clipboard paste. Local raster
+  images receive safe previews; every supported file remains downloadable.
+- Export the selected note as Markdown or PDF from its desktop editor header.
+  PDF export can include local images, metadata, and bounded backlink context.
+- Use **Settings → Portable backup** to download or restore the complete
+  versioned workspace. Replace restore requires an explicit confirmation and
+  produces a safety backup before changing live data.
+
+## Data safety
 
 Stop the services without deleting data:
 
@@ -27,33 +122,19 @@ Stop the services without deleting data:
 docker compose down
 ```
 
-Do not add `--volumes` unless you deliberately intend to delete all local application data.
+Do not add `--volumes` unless you deliberately intend to delete the database and
+all attachment bytes. Create a portable backup before upgrades and keep a
+verified copy outside the Docker host.
 
-## Install a released image
+Linked Notes has no authentication because it is designed for one trusted user
+on one machine. Keep the default loopback binding. Setting `APP_HOST=0.0.0.0`
+exposes the complete workspace to anyone who can reach that port; it is not a
+supported security boundary.
 
-The repository and GHCR packages are private, so first authenticate an account
-that can read `josh-uk/linked-notes`. Check out the matching release source so
-Compose configuration and images stay in lockstep:
+## Development
 
-```bash
-git clone https://github.com/josh-uk/linked-notes.git
-cd linked-notes
-git checkout v1.0.0
-cp .env.example .env
-# Replace the password in both POSTGRES_PASSWORD and DATABASE_URL.
-# Set APP_IMAGE and MIGRATE_IMAGE in .env to the matching 1.0.0 GHCR tags.
-docker login ghcr.io
-docker compose pull app migrate
-docker compose up -d
-docker compose ps
-```
-
-Use `ghcr.io/josh-uk/linked-notes:1.0.0` and
-`ghcr.io/josh-uk/linked-notes-migrate:1.0.0`. The separate migration image must
-complete before the read-only app starts. See [operations](docs/operations.md)
-and [releases and upgrades](docs/releases.md) before changing versions.
-
-## Local development
+Requirements: Node.js 22+, npm, and PostgreSQL 18 (Docker is the documented
+development database).
 
 ```bash
 npm ci
@@ -62,80 +143,33 @@ DATABASE_URL=postgresql://linked_notes:your-password@127.0.0.1:5432/linked_notes
 DATABASE_URL=postgresql://linked_notes:your-password@127.0.0.1:5432/linked_notes npm run dev
 ```
 
-Run the baseline quality gate with `npm run check`. See [development documentation](docs/development.md) for the full workflow.
+Run the baseline quality gate with:
 
-## Using the workspace
+```bash
+npm run check
+```
 
-- Choose **New** or press <kbd>Ctrl</kbd>/<kbd>Cmd</kbd>+<kbd>N</kbd> to create a note.
-- Edit the title and rich-text body directly. The save indicator reports unsaved,
-  saving, saved, failed, and conflicting states.
-- Type `@` in a note to search active notes. Use the arrow keys and
-  <kbd>Enter</kbd>, or choose a result with the pointer. Linking the current note
-  to itself is supported and labelled in the menu.
-- Select a mention to open its note. Mentions show the target's current title
-  without rewriting the source document, and visibly identify archived, trashed,
-  or permanently removed targets.
-- Expand **Backlinks** below the editor to page through source notes and each
-  nearby context that links to the open note.
-- Press <kbd>Ctrl</kbd>/<kbd>Cmd</kbd>+<kbd>K</kbd> to focus search. Search covers
-  titles and note bodies, highlights matches, ranks titles first, and combines
-  with folder, tag, lifecycle, and attachment filters.
-- Create nested folders and coloured tags from their management controls in the
-  left sidebar. A note can be moved or tagged from the editor; desktop selection
-  mode applies move, tag, pin, archive, restore, or trash actions to up to 100
-  notes transactionally.
-- Use **Pinned**, **Archive**, and **Trash** for lifecycle views. Restoring an
-  archived note returns it to active notes; restoring a trashed archived note
-  returns it to the archive.
-- Permanent deletion is available only from Trash and requires confirmation.
-  Trash retention defaults to **Never** and can be changed in Workspace Settings.
-- Use **Add files**, drop files onto the editor, or paste a clipboard image to
-  attach local content. PNG, JPEG, GIF, and WebP render as safe previews; every
-  type remains downloadable. Upload progress, cancellation, retry, explicit
-  removal, missing-byte states, and attachment-presence filtering are available
-  from the desktop workspace.
-- Export the selected note from its desktop editor header as readable Markdown
-  or a deterministic PDF. PDF exports include local raster attachments, metadata,
-  and optionally the first 100 backlink mentions with an explicit truncation
-  notice, without allowing Chromium to fetch network resources.
-- From **Workspace Settings → Portable backup**, download the complete versioned
-  workspace archive or stage and validate one for merge/replace restore. Replace
-  requires typing `REPLACE` and creates a downloadable safety backup before any
-  live data changes.
-- Workspace Settings can verify attachment sizes/checksums and identify missing,
-  corrupt, staged, or unreferenced bytes. Automatic repair removes only
-  unreferenced bytes; it does not discard missing/corrupt metadata silently.
-- On smaller screens, use the back and menu buttons to move between the editor,
-  note list, and workspace navigation.
+The repository also includes PostgreSQL integration, migration, security,
+browser, performance, Compose, and release-image suites. See
+[development](docs/development.md) for the complete workflow.
 
-Notes are soft-deleted from the workspace. The server's guarded permanent-delete
-path only accepts already-trashed notes; inbound mentions retain their immutable
-target identity and become explicit broken references.
+## Documentation
 
-## Safety and privacy
+| Area       | Guide                                                                                                              |
+| ---------- | ------------------------------------------------------------------------------------------------------------------ |
+| Design     | [Architecture](docs/architecture.md), [ADRs](docs/adr), [accessibility](docs/accessibility.md)                     |
+| Data       | [Backup format](docs/backup-format.md), [attachments](docs/attachments.md)                                         |
+| Operations | [Operations](docs/operations.md), [troubleshooting](docs/troubleshooting.md), [releases](docs/releases.md)         |
+| Assurance  | [Threat model](docs/threat-model.md), [security audit](docs/security-audit.md), [performance](docs/performance.md) |
+| Project    | [Contributing](CONTRIBUTING.md), [security policy](SECURITY.md), [changelog](CHANGELOG.md)                         |
 
-Linked Notes is single-user software with no authentication. Keep the default
-loopback binding. Exposing its port to a LAN or the internet exposes the complete
-workspace to anyone who can reach it. Use the full portable backup before
-upgrades and keep a verified copy outside the Docker volumes. See
-[backup, restore, and recovery](docs/backup-format.md).
+## Contributing and security
 
-## Project documentation
+Contributions are welcome through issues and pull requests. Read
+[CONTRIBUTING.md](CONTRIBUTING.md) before making changes. Please report
+vulnerabilities privately using the process in [SECURITY.md](SECURITY.md), not a
+public issue.
 
-- [Architecture](docs/architecture.md)
-- [Development](docs/development.md)
-- [Backup format](docs/backup-format.md)
-- [Threat model](docs/threat-model.md)
-- [Accessibility audit](docs/accessibility.md)
-- [Security and privacy audit](docs/security-audit.md)
-- [Performance measurements](docs/performance.md)
-- [Attachment storage and recovery](docs/attachments.md)
-- [Operations](docs/operations.md)
-- [Troubleshooting](docs/troubleshooting.md)
-- [Releases and upgrades](docs/releases.md)
-- [Contributing](CONTRIBUTING.md)
-- [Security policy](SECURITY.md)
+## License
 
-## Licence
-
-Linked Notes is licensed under the [MIT License](LICENSE).
+Linked Notes is released under the [MIT License](LICENSE).

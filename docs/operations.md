@@ -8,9 +8,10 @@ and the read-only application image.
 
 For a source install, copy `.env.example`, replace the example password in both
 places, and run `docker compose up --build -d`. For a release install, set
-matching `APP_IMAGE` and `MIGRATE_IMAGE` values, authenticate to GHCR, run
-`docker compose pull app migrate`, then `docker compose up -d`. Do not combine
-an app image from one release with a migration image from another.
+matching `APP_IMAGE` and `MIGRATE_IMAGE` values, run `docker compose pull app
+migrate`, then `docker compose up -d`. The public GHCR images do not require a
+GitHub sign-in. Do not combine an app image from one release with a migration
+image from another.
 
 The default ports bind only to loopback. `APP_HOST=0.0.0.0` exposes a completely
 unauthenticated private workspace to the attached network and is not a supported

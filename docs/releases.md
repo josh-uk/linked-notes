@@ -7,9 +7,8 @@ commits, and two matching container images:
 - `ghcr.io/josh-uk/linked-notes-migrate` contains Prisma migration tooling and
   exits after `prisma migrate deploy`.
 
-The repository and packages are private. A user must have access to
-`josh-uk/linked-notes` and authenticate Docker to `ghcr.io` before pulling them.
-Source builds remain the no-registry alternative.
+The repository and both packages are public. Release images can be pulled from
+GHCR without authentication. Source builds remain the no-registry alternative.
 
 ## Published tag contract
 
@@ -43,11 +42,10 @@ Moving tags are conveniences. Pin `X.Y.Z` for a release line or the digest from
    MIGRATE_IMAGE=ghcr.io/josh-uk/linked-notes-migrate:1.0.0
    ```
 
-5. Authenticate, pull, and start. Compose runs the one-shot migration before it
-   replaces the app:
+5. Pull and start. Compose runs the one-shot migration before it replaces the
+   app:
 
    ```bash
-   docker login ghcr.io
    docker compose pull app migrate
    docker compose up -d
    docker compose ps
@@ -117,17 +115,22 @@ docker buildx imagetools inspect ghcr.io/josh-uk/linked-notes:1.0.0
 docker buildx imagetools inspect ghcr.io/josh-uk/linked-notes-migrate:1.0.0
 gh release download v1.0.0 --repo josh-uk/linked-notes --dir release-evidence
 (cd release-evidence && sha256sum -c SHA256SUMS)
-gh attestation verify oci://ghcr.io/josh-uk/linked-notes:1.0.0 \
+```
+
+Version 1.0.0 was published while the repository was private, so GitHub-signed
+attestation bundles were unavailable for that release. Verify its checksums and
+digests, inspect the BuildKit provenance and SPDX SBOM attestations in GHCR, and
+use the attached SPDX files and `release-image-digests.json`. Public releases
+published after the visibility change should also verify with:
+
+```bash
+gh attestation verify oci://ghcr.io/josh-uk/linked-notes:VERSION \
   --repo josh-uk/linked-notes \
   --signer-workflow josh-uk/linked-notes/.github/workflows/image-publish.yml
 ```
 
-If GitHub-signed attestations are unavailable for the private account plan, the
-signed-bundle verification command will report no GitHub attestation. In that
-case verify the release checksums/digests, inspect the BuildKit provenance and
-SPDX SBOM attestations in GHCR, and use the attached SPDX files and
-`release-image-digests.json`. This limitation must be recorded in the issue and
-release evidence; it must not be silently described as a signed attestation.
+Any unavailable signed bundle must still be recorded in the release evidence;
+it must not be silently described as a signed attestation.
 
 Action pins are immutable commit SHAs. Dependabot proposes updates; maintainers
 review the upstream release and change the SHA plus readable version comment

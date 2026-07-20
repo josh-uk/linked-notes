@@ -190,11 +190,11 @@ docker build --target runner -t linked-notes:security-scan .
 trivy image --scanners vuln --pkg-types os,library --ignore-unfixed --severity HIGH,CRITICAL --exit-code 1 linked-notes:security-scan
 ```
 
-GitHub CodeQL is not supported for this private, personal-account repository
-without GitHub Code Security. The self-contained ESLint security scan is the
-strongest supported source-analysis equivalent here and does not depend on an
-unavailable code-scanning API. If the repository later moves to a supported
-organisation plan or becomes public, add CodeQL alongside this gate.
+During the Phase 6 audit, GitHub CodeQL was unavailable because the repository
+was private and owned by a personal account without GitHub Code Security. The
+required ESLint security scan remains a toolchain-portable source-analysis gate
+and does not depend on the code-scanning API. The now-public repository can add
+CodeQL as an additional GitHub-native signal without replacing this gate.
 
 ## Dependency pins
 

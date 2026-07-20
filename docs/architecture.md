@@ -189,5 +189,7 @@ and the tag commit is the current `master`. Release validation then builds the
 same two Dockerfile targets for both architectures, proves clean migration,
 runtime health, PDF, backup/replace restore, persistence, and disabled outbound
 networking, and publishes version/major/minor/latest manifests. BuildKit attaches
-maximum-mode provenance and SPDX SBOMs; GitHub-signed attestations are added when
-the private account plan supports them. See [releases and upgrades](releases.md).
+maximum-mode provenance and SPDX SBOMs. Public releases also attempt
+GitHub-signed attestations; version 1.0.0 retains registry-native evidence
+because it was published before the repository became public. See
+[releases and upgrades](releases.md).
