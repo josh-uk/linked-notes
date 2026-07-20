@@ -33,7 +33,7 @@
     "check": "npm run format:check && npm run lint && npm run typecheck && npm run prisma:validate && npm run test && npm run build"
   },
   "dependencies": {
-    "@prisma/client": "6.19.3",
+    "@prisma/client": "7.8.0",
     "@tiptap/core": "^3.20.4",
     "@tiptap/extension-link": "^3.20.4",
     "@tiptap/extension-mention": "^3.20.4",
