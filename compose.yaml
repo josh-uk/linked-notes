@@ -51,6 +51,13 @@ services:
       MAX_BACKUP_MANIFEST_BYTES: ${MAX_BACKUP_MANIFEST_BYTES:-26214400}
       MAX_BACKUP_ENTRIES: ${MAX_BACKUP_ENTRIES:-50000}
       MAX_BACKUP_COMPRESSION_RATIO: ${MAX_BACKUP_COMPRESSION_RATIO:-5000}
+      AI_ENABLED: ${AI_ENABLED:-false}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+      OLLAMA_CHAT_MODEL: ${OLLAMA_CHAT_MODEL:-qwen3.5:4b}
+      OLLAMA_EMBEDDING_MODEL: ${OLLAMA_EMBEDDING_MODEL:-qwen3-embedding:0.6b}
+      AI_REQUEST_TIMEOUT_MS: ${AI_REQUEST_TIMEOUT_MS:-120000}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     ports:
       - "${APP_HOST:-127.0.0.1}:${APP_PORT:-3000}:3000"
     volumes:

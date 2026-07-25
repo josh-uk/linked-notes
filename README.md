@@ -23,6 +23,10 @@ portable backup.
 - **Durable note links.** Type `@` to connect a note. Links follow title changes,
   backlinks include nearby context, and removed targets remain explicit rather
   than silently disappearing.
+- **Optional local AI.** A click-to-run Ollama assistant can summarise a note,
+  identify likely duplicates, and explain useful links. Results remain
+  reviewable until explicitly inserted, and note text never goes to a hosted AI
+  service.
 - **Focused rich-text editing.** Headings, lists, checklists, quotes, code,
   links, undo/redo, keyboard creation, debounced autosave, and conflict recovery
   are built in.
@@ -64,6 +68,46 @@ docker compose ps
 Open <http://127.0.0.1:3000>. PostgreSQL and attachment bytes live in the
 `postgres_data` and `attachment_data` named volumes.
 
+### Enable the optional local AI assistant
+
+On Apple silicon, run Ollama natively so inference uses Metal while Linked Notes
+remains in Docker. The default models require about 4 GB of downloaded storage:
+
+```bash
+brew install ollama
+brew services start ollama
+ollama pull qwen3.5:4b
+ollama pull qwen3-embedding:0.6b
+curl http://127.0.0.1:11434/api/tags
+```
+
+Enable the integration in the private `.env` file:
+
+```dotenv
+AI_ENABLED=true
+OLLAMA_BASE_URL=http://host.docker.internal:11434
+OLLAMA_CHAT_MODEL=qwen3.5:4b
+OLLAMA_EMBEDDING_MODEL=qwen3-embedding:0.6b
+AI_REQUEST_TIMEOUT_MS=120000
+```
+
+Recreate the app container after changing its environment:
+
+```bash
+docker compose up --build -d app
+```
+
+Expand **AI assistant** below a note, then choose **Summarise** or
+**Find connections**. Analysis runs only after that click. Results are
+ephemeral; **Insert bullets** and **Insert @link** are the only actions that
+change the note, and they use the normal autosave path.
+
+Ollama needs internet access only while models are pulled. Inference requests
+travel from the app container to the configured host endpoint and are not sent
+to Ollama's cloud or another provider. Keep Ollama local, do not configure a
+remote `OLLAMA_BASE_URL`, and see [troubleshooting](docs/troubleshooting.md) if
+the status remains unavailable.
+
 ### Run the released containers
 
 The public release images support Linux amd64 and arm64. Check out the matching
@@ -101,6 +145,8 @@ For upgrades and recovery, follow [releases and upgrades](docs/releases.md) and
   states.
 - Type `@` to search active notes and insert a durable link. Select a mention to
   open its target; expand **Backlinks** to review source notes and context.
+- Expand **AI assistant** to run an optional local summary or connection scan.
+  Review its explanation before inserting bullets or a durable `@` link.
 - Press <kbd>Ctrl</kbd>/<kbd>Cmd</kbd>+<kbd>K</kbd> to focus full-text search.
   Search combines with folder, tag, lifecycle, and attachment filters.
 - Create nested folders and coloured tags from the left sidebar. Selection mode
@@ -130,6 +176,11 @@ Linked Notes has no authentication because it is designed for one trusted user
 on one machine. Keep the default loopback binding. Setting `APP_HOST=0.0.0.0`
 exposes the complete workspace to anyone who can reach that port; it is not a
 supported security boundary.
+
+When local AI is enabled, saved note titles and plain text cross one additional
+trust boundary into the configured Ollama process. Linked Notes never sends
+attachments, credentials, database URLs, or complete editor JSON to Ollama,
+never logs AI prompt or response content, and never falls back to a cloud model.
 
 ## Development
 

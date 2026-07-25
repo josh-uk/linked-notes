@@ -34,6 +34,7 @@ import {
 import { createEditorExtensions } from "../editor-extensions";
 import { sanitizePastedHtml } from "../paste-sanitizer";
 import type {
+  AiConnectionSuggestion,
   ApiError,
   EditorDocument,
   NoteDetail,
@@ -42,6 +43,7 @@ import type {
 } from "../types";
 import { EditorToolbar } from "./editor-toolbar";
 import { BacklinksPanel } from "./backlinks-panel";
+import { AiAssistantPanel } from "./ai-assistant-panel";
 import {
   AttachmentPanel,
   type AttachmentPanelHandle,
@@ -91,6 +93,7 @@ export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
     const [actionPending, setActionPending] = useState(false);
     const [confirmPermanentDelete, setConfirmPermanentDelete] = useState(false);
     const [dragActive, setDragActive] = useState(false);
+    const [aiRevision, setAiRevision] = useState(0);
 
     const titleRef = useRef(note.title);
     const contentRef = useRef(note.content);
@@ -109,6 +112,7 @@ export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
         titleRef.current = nextTitle;
         contentRef.current = nextContent;
         revisionRef.current += 1;
+        setAiRevision((revision) => revision + 1);
         setSaveState("unsaved");
         setSaveMessage(null);
         persistDraft(
@@ -255,6 +259,7 @@ export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
       setRecoverableDraft(readPersistedDraft(note.id));
       setSaveState("saved");
       setSaveMessage(null);
+      setAiRevision(0);
       editor.commands.setContent(note.content, { emitUpdate: false });
     }, [editor, note.content, note.id, note.optimisticVersion, note.title]);
 
@@ -416,6 +421,7 @@ export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
       versionRef.current = conflict.optimisticVersion;
       editor?.commands.setContent(conflict.content, { emitUpdate: false });
       savedRevisionRef.current = revisionRef.current;
+      setAiRevision((revision) => revision + 1);
       conflictRef.current = null;
       setConflict(null);
       setSaveState("saved");
@@ -479,6 +485,52 @@ export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
         ...(format === "pdf" ? { backlinks: "true" } : {}),
       });
       window.location.assign(`/api/notes/${note.id}/export?${query}`);
+    }
+
+    function insertAiSummary(bullets: string[]) {
+      if (!editor) return;
+      editor
+        .chain()
+        .focus()
+        .insertContent([
+          {
+            type: "heading",
+            attrs: { level: 2 },
+            content: [{ type: "text", text: "Summary" }],
+          },
+          {
+            type: "bulletList",
+            content: bullets.map((bullet) => ({
+              type: "listItem",
+              content: [
+                {
+                  type: "paragraph",
+                  content: [{ type: "text", text: bullet }],
+                },
+              ],
+            })),
+          },
+        ])
+        .run();
+    }
+
+    function insertAiLink(suggestion: AiConnectionSuggestion) {
+      if (!editor) return;
+      editor
+        .chain()
+        .focus()
+        .insertContent([
+          {
+            type: "mention",
+            attrs: {
+              id: suggestion.noteId,
+              label: suggestion.title,
+              mentionId: globalThis.crypto.randomUUID(),
+            },
+          },
+          { type: "text", text: " " },
+        ])
+        .run();
     }
 
     return (
@@ -774,6 +826,15 @@ export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
           onKeyDown={onEditorKeyDown}
         >
           <EditorContent editor={editor} />
+          <AiAssistantPanel
+            key={note.id}
+            noteId={note.id}
+            revision={aiRevision}
+            beforeAnalysis={flush}
+            onInsertSummary={insertAiSummary}
+            onInsertLink={insertAiLink}
+            onOpenNote={onOpenLinkedNote}
+          />
           <BacklinksPanel noteId={note.id} onOpenNote={onOpenLinkedNote} />
           <AttachmentPanel
             ref={attachmentRef}
