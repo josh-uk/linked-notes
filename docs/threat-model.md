@@ -9,6 +9,8 @@ Linked Notes protects one local user's notes and attachments from accidental los
 - Upload streams cross into an attachment volume and later into download responses.
 - Backup archives cross into a staging area before validation and import.
 - Print HTML crosses into a sandboxed local Chromium process.
+- When explicitly enabled and invoked, bounded saved note text crosses from the
+  application container into a user-configured local Ollama process.
 
 ## Baseline controls
 
@@ -25,7 +27,9 @@ backlinks. Permanent deletion requires a trashed note and matching optimistic
 version, while inbound references retain only non-secret IDs, fallback labels,
 and bounded source context.
 
-The Compose port binds to loopback and its application network has no outbound route.
+The Compose ports bind to loopback. The optional Ollama integration adds one
+configured host HTTP destination to the server process; it is disabled by
+default and is never called from browser code or without a user action.
 
 Folder and tag names, search strings, filters, sort choices, bulk selections, and
 retention settings are strictly bounded at the route boundary. Full-text search
@@ -67,10 +71,21 @@ network features suppressed, host resolution denied, and request interception
 that aborts any non-local resource. A blocked request fails the export instead
 of producing a document with externally retrieved content.
 
+AI configuration accepts only bounded model names and an HTTP(S) server URL from
+the trusted server environment; requests cannot supply or override either.
+Prompts frame note bodies as untrusted data and explicitly reject instructions
+inside them. Inputs, responses, and exception messages are bounded; model
+requests time out; structured responses are schema-validated; suggested note IDs
+must belong to the server-selected shortlist; and output renders as React text.
+The feature sends no attachment bytes, credentials, URLs from note content,
+editor HTML, or database connection data. There is no tool execution, cloud
+fallback, automatic note mutation, background scan, or persistent AI cache.
+
 The database and application share an internal-only backend network. Each also
 joins a frontend bridge so Docker Desktop can publish loopback-bound application
-and development-database ports; neither port binds to the LAN by default, and
-application code makes no external runtime requests. Production pages use a
+and development-database ports; neither port binds to the LAN by default.
+Application code makes no runtime request beyond the explicitly enabled,
+configured Ollama host endpoint. Production pages use a
 per-request-nonce CSP plus restrictive browser headers, startup checks validate
 environment/storage/schema assumptions, and full-history secret scanning,
 dependency audit, JavaScript/TypeScript security-pattern analysis, and

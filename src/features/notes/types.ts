@@ -82,6 +82,45 @@ export type BacklinksResponse = {
   nextCursor: string | null;
 };
 
+export type AiStatusResponse = {
+  enabled: boolean;
+  available: boolean;
+  modelsReady: boolean;
+  chatModel: string;
+  embeddingModel: string;
+  missingModels: string[];
+  message: string | null;
+};
+
+export type AiSummaryResponse = {
+  action: "summarize";
+  noteVersion: number;
+  bullets: string[];
+  truncated: boolean;
+};
+
+export type AiConnectionSuggestion = {
+  noteId: string;
+  title: string;
+  state: "active" | "archived";
+  relationship: "duplicate" | "related";
+  confidence: number;
+  similarity: number;
+  reason: string;
+  alreadyLinked: boolean;
+};
+
+export type AiConnectionsResponse = {
+  action: "find-connections";
+  noteVersion: number;
+  suggestions: AiConnectionSuggestion[];
+  scannedNotes: number;
+  scanLimitReached: boolean;
+  truncated: boolean;
+};
+
+export type AiAnalysisResponse = AiSummaryResponse | AiConnectionsResponse;
+
 export type NoteFolder = {
   id: string;
   name: string;

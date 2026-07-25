@@ -35,10 +35,18 @@ for (const [file, content] of contents) {
   }
 }
 
+const localRuntimeHosts = new Set([
+  "localhost",
+  "127.0.0.1",
+  "[::1]",
+  "host.docker.internal",
+  "ollama",
+]);
 for (const [file, content] of contents) {
   if (!file.startsWith("src/")) continue;
   const external = content.match(/https?:\/\/[A-Za-z0-9][^\s"'`)<]*/g) ?? [];
   for (const url of external) {
+    if (localRuntimeHosts.has(new URL(url).hostname)) continue;
     failures.push(`${file} contains an external runtime URL: ${url}`);
   }
 }

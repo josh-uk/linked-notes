@@ -40,6 +40,37 @@ Confirm the app image matches the documented release and `/tmp` tmpfs exists.
 Any non-data network request in print HTML is deliberately blocked and fails the
 export. Do not fix this by enabling Chromium networking or JavaScript.
 
+## Local AI is disabled, unavailable, or missing a model
+
+The assistant is optional and disabled unless `AI_ENABLED=true` reaches the app
+container. After changing `.env`, recreate the app with
+`docker compose up --build -d app`; a restart alone does not apply changed
+Compose environment values.
+
+Check native Ollama first:
+
+```bash
+brew services list | grep ollama
+curl http://127.0.0.1:11434/api/tags
+ollama list
+```
+
+The configured defaults require both `qwen3.5:4b` and
+`qwen3-embedding:0.6b`. Pull a missing model with `ollama pull MODEL_NAME`.
+Model names in `.env` must match `ollama list` exactly.
+
+If host Ollama works but the assistant reports it unreachable, check from the
+application container:
+
+```bash
+docker compose exec app node -e "fetch('http://host.docker.internal:11434/api/tags').then(r=>console.log(r.status)).catch(e=>console.error(e.name))"
+```
+
+Keep the endpoint local and do not work around reachability by exposing the
+unauthenticated Ollama API to the LAN. Long first requests can include model
+load time; increase `AI_REQUEST_TIMEOUT_MS` up to 300000 if required. App logs
+contain only error classes and never the note prompt or model response.
+
 ## Backup or restore fails
 
 Check free attachment-volume space and configured archive/expanded/entry limits.

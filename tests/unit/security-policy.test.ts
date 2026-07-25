@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { buildContentSecurityPolicy } from "@/lib/content-security-policy";
+import { aiApiError } from "@/server/ai/ai-errors";
 import { noteApiError } from "@/server/notes/api-response";
 
 afterEach(() => vi.restoreAllMocks());
@@ -47,5 +48,19 @@ describe("security boundaries", () => {
     expect(log).toHaveBeenCalledWith("notes_api_error", {
       error: "Error",
     });
+  });
+
+  it("redacts private prompt content from unexpected AI errors and logs", async () => {
+    const privateValue = "PRIVATE AI PROMPT AND NOTE BODY";
+    const log = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const response = aiApiError(
+      new Error(privateValue),
+      "The local analysis failed safely",
+    );
+
+    expect(response.status).toBe(500);
+    expect(JSON.stringify(await response.json())).not.toContain(privateValue);
+    expect(JSON.stringify(log.mock.calls)).not.toContain(privateValue);
+    expect(log).toHaveBeenCalledWith("ai_api_error", { error: "Error" });
   });
 });

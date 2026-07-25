@@ -10,6 +10,9 @@ Next.js standalone app ----> /data/attachments named volume
         |
         v
 PostgreSQL named volume
+
+optional, click-to-run only:
+Next.js standalone app ----> native Ollama on host
 ```
 
 React Server Components are the default rendering model. Client components are reserved for editor and interaction state. Server mutations validate boundary input with Zod, use Prisma transactions where records must change together, and return typed domain errors. Server-only modules remain under `src/server`.
@@ -106,6 +109,29 @@ the React client parses only the fixed `<mark>` markers and never inserts result
 HTML. Search is offset-paginated and applies lifecycle, folder, tag, and
 attachment-presence filters in SQL. See [performance measurements](performance.md).
 
+## Optional local AI
+
+The AI assistant is disabled by default and has no browser-to-model connection.
+When enabled, a same-origin route loads the saved note from PostgreSQL and makes
+a bounded server-side request to the configured Ollama HTTP endpoint. The editor
+flushes pending autosave work before that route is called. No scheduler,
+background indexer, database embedding column, or hosted provider exists.
+
+Summary requests send the title and at most 24,000 plain-text characters to the
+configured chat model, using a strict JSON schema for three to seven bullet
+strings. Connection requests batch at most the 1,000 most recently updated
+non-trashed candidates through the embedding model, cache vectors in bounded
+process memory by model/note/version, and send only the eight closest bounded
+candidates to the chat model for conservative duplicate/related/unrelated
+classification. The response is checked against candidate UUIDs, deduplicated,
+and confidence-filtered before it reaches React.
+
+Model output is untrusted text. It is rendered through React, not HTML. Results
+are ephemeral and tied to the editor revision that requested them. The only
+write actions convert reviewed bullets into supported Tiptap list nodes or a
+reviewed candidate into the existing UUID-backed mention node; both then use the
+ordinary validated optimistic save and link-reconciliation path.
+
 ## Attachment ingestion and integrity
 
 Attachment bytes never enter PostgreSQL. The upload route consumes the raw web
@@ -161,7 +187,9 @@ attachment-directory writability, and schema metadata before readiness. The
 application maps unexpected failures to stable public messages and logs only
 error classes or opaque operational identifiers. The production runner executes
 as UID 1001 with a read-only root, bounded temporary storage, no npm/npx tooling,
-and loopback-only port publication. See the [security audit](security-audit.md).
+and loopback-only port publication. The optional Ollama URL is validated at
+startup, is never accepted from a browser request, and is contacted only after a
+user invokes an AI action. See the [security audit](security-audit.md).
 
 Full backup generation captures a repeatable-read PostgreSQL snapshot, writes a
 strict versioned manifest, and streams checksum-verified attachment bytes into a
