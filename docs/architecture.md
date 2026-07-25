@@ -126,6 +126,29 @@ candidates to the chat model for conservative duplicate/related/unrelated
 classification. The response is checked against candidate UUIDs, deduplicated,
 and confidence-filtered before it reaches React.
 
+Semantic search uses the same versioned in-memory vectors across at most 1,000
+notes in the selected active, pinned, or archived scope. It runs only when the
+user submits a query in Meaning mode, returns cosine-ranked normal note
+summaries, and persists no index. Ask-notes retrieval shortlists the eight
+closest non-trashed notes, bounds each source to 2,200 characters, and asks the
+chat model for an evidence-only answer plus source UUIDs. The server discards
+unknown and duplicate citations; an answer without at least one validated
+source is returned as no answer.
+
+Folder cleanup embeds at most 1,000 active or archived unfiled notes and 200
+existing folders. A folder vector combines its name with up to three recent
+representative notes. The closest destination and cosine score are presented
+for every non-empty unfiled note; low-confidence matches start unselected.
+Applying reviewed suggestions uses the existing optimistic-version bulk move
+path in batches of 100.
+
+Selection writing accepts at most 24,000 characters from text that the server
+verifies is still present in the saved note, and sends at most 6,000 characters
+to the chat model. Shorten, clarify, proofread, bullets, expansion, tone, and
+translation responses are bounded to 8,000 plain-text characters. The browser
+retains the original document range and blocks replacement when either the note
+or selection changes.
+
 Model output is untrusted text. It is rendered through React, not HTML. Results
 are ephemeral and tied to the editor revision that requested them. The only
 write actions convert reviewed bullets into supported Tiptap list nodes or a

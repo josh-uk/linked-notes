@@ -14,6 +14,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { useTheme } from "next-themes";
+import { useSyncExternalStore } from "react";
 
 import type { FolderSummary, NotesView, OrganizationResponse } from "../types";
 
@@ -36,6 +37,10 @@ const navigation = [
   { view: "trash" as const, label: "Trash", icon: Trash2 },
 ];
 
+const subscribeToHydration = () => () => undefined;
+const clientHydratedSnapshot = () => true;
+const serverHydratedSnapshot = () => false;
+
 export function AppSidebar({
   currentView,
   organization,
@@ -48,7 +53,12 @@ export function AppSidebar({
   onOpenNotes,
 }: AppSidebarProps) {
   const { theme, setTheme } = useTheme();
-  const currentTheme = theme ?? "system";
+  const themeMounted = useSyncExternalStore(
+    subscribeToHydration,
+    clientHydratedSnapshot,
+    serverHydratedSnapshot,
+  );
+  const currentTheme = themeMounted ? (theme ?? "system") : "system";
   const folders = flattenFolders(organization?.folders ?? []);
 
   return (
