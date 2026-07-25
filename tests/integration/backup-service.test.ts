@@ -49,6 +49,7 @@ describe("backup and restore service", () => {
 
   beforeEach(async () => {
     await prisma.note.deleteMany();
+    await prisma.noteTemplate.deleteMany();
     await prisma.folder.deleteMany();
     await prisma.tag.deleteMany();
     await prisma.setting.deleteMany();

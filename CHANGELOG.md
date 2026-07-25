@@ -4,6 +4,27 @@ All notable changes to Linked Notes will be documented in this file. The format 
 
 ## [Unreleased]
 
+### Added
+
+- Desktop command centre with keyboard-first quick capture, note search, daily
+  notes, reusable templates, local-AI cleanup, and workspace import/export.
+- Bounded note version history with previews, restore snapshots, and backup
+  coverage.
+- Review-before-import Markdown folder migration with nested folders, tags,
+  durable-link remapping, source idempotency, and whole-workspace Markdown
+  archive export.
+- macOS Apple Notes exporter using the Notes automation interface, preserving
+  account/folder structure, dates, text, best-effort companion attachments, and
+  a detailed migration report.
+- Click-only local-AI workspace cleanup for duplicate, related-link, tag, title,
+  and stale-note suggestions, with explicit apply or dismiss controls.
+
+### Changed
+
+- Portable backups now include history, templates, daily-note identity, and
+  import-source identity while remaining able to restore older data-schema
+  backups.
+
 ## [1.1.0] - 2026-07-25
 
 ### Added

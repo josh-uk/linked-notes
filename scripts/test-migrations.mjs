@@ -22,6 +22,7 @@ const databases = {
   clean: "linked_notes_migration_clean",
   upgrade: "linked_notes_migration_upgrade",
 };
+const expectedMigrationCount = 5;
 const fixture = {
   source: "11111111-1111-4111-8111-111111111111",
   target: "22222222-2222-4222-8222-222222222222",
@@ -79,13 +80,15 @@ try {
   await deploy("prisma/schema.prisma", cleanUrl);
   const clean = new PrismaClient({ datasources: { db: { url: cleanUrl } } });
   try {
-    if ((await migrationCount(clean)) !== 4) {
-      throw new Error("Clean migration did not apply all four migrations");
+    if ((await migrationCount(clean)) !== expectedMigrationCount) {
+      throw new Error(
+        `Clean migration did not apply all ${expectedMigrationCount} migrations`,
+      );
     }
     const metadata = await clean.schemaMetadata.findUnique({
       where: { id: 1 },
     });
-    if (!metadata || metadata.dataSchemaVersion !== 1) {
+    if (!metadata || metadata.dataSchemaVersion !== 2) {
       throw new Error("Clean migration did not create schema metadata");
     }
   } finally {
@@ -133,8 +136,10 @@ try {
     datasources: { db: { url: upgradeUrl } },
   });
   try {
-    if ((await migrationCount(upgraded)) !== 4) {
-      throw new Error("Upgrade migration did not apply all four migrations");
+    if ((await migrationCount(upgraded)) !== expectedMigrationCount) {
+      throw new Error(
+        `Upgrade migration did not apply all ${expectedMigrationCount} migrations`,
+      );
     }
     const link = await upgraded.noteLink.findUnique({
       where: {

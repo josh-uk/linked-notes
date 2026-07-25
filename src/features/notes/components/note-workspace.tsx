@@ -23,6 +23,10 @@ import { NoteEditor, type NoteEditorHandle } from "./note-editor";
 import { NoteList } from "./note-list";
 import { OrganizationDialog } from "./organization-dialog";
 import { WorkspaceAiDialog } from "./workspace-ai-dialog";
+import {
+  CommandCenterDialog,
+  type CommandCenterView,
+} from "./command-center-dialog";
 
 type MobileView = "sidebar" | "list" | "editor";
 type OrganizationSection = "folders" | "tags" | "settings";
@@ -52,6 +56,9 @@ export function NoteWorkspace() {
   const [editorLoading, setEditorLoading] = useState(false);
   const [organizationOpen, setOrganizationOpen] = useState(false);
   const [workspaceAiOpen, setWorkspaceAiOpen] = useState(false);
+  const [commandCenterOpen, setCommandCenterOpen] = useState(false);
+  const [commandCenterView, setCommandCenterView] =
+    useState<CommandCenterView>("home");
   const [organizationSection, setOrganizationSection] =
     useState<OrganizationSection>("folders");
   const editorRef = useRef<NoteEditorHandle>(null);
@@ -247,17 +254,22 @@ export function NoteWorkspace() {
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (document.querySelector("dialog[open]")) return;
+      if (
+        (event.metaKey || event.ctrlKey) &&
+        event.shiftKey &&
+        event.key.toLowerCase() === "n"
+      ) {
+        event.preventDefault();
+        void openCommandCenter("capture");
+        return;
+      }
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "n") {
         event.preventDefault();
         void createNote();
       }
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
         event.preventDefault();
-        document
-          .querySelector<HTMLInputElement>(
-            '[aria-label="Search note titles and bodies"]',
-          )
-          ?.focus();
+        void openCommandCenter("home");
       }
     };
     window.addEventListener("keydown", onKeyDown);
@@ -303,6 +315,34 @@ export function NoteWorkspace() {
       );
     } finally {
       setCreating(false);
+    }
+  }
+
+  async function openCommandCenter(nextView: CommandCenterView) {
+    if (!((await editorRef.current?.flush().catch(() => false)) ?? true))
+      return;
+    setCommandCenterView(nextView);
+    setCommandCenterOpen(true);
+  }
+
+  function handleCreated(note: NoteDetail) {
+    selectedNoteRef.current = note;
+    setSelectedNote(note);
+    setNotes((current) => [
+      toSummary(note),
+      ...current.filter(({ id }) => id !== note.id),
+    ]);
+    setView("all");
+    setCurrentFolderId(null);
+    setCurrentTagId(null);
+    setMobileView("editor");
+    void fetchOrganization();
+  }
+
+  async function refreshWorkspace() {
+    await Promise.all([fetchOrganization(), fetchPage()]);
+    if (selectedNoteRef.current) {
+      await fetchNote(selectedNoteRef.current.id);
     }
   }
 
@@ -434,6 +474,7 @@ export function NoteWorkspace() {
         onTagChange={(tagId) => void chooseTag(tagId)}
         onManageOrganization={openOrganization}
         onOpenNotes={() => setMobileView("list")}
+        onOpenCommandCenter={() => void openCommandCenter("home")}
       />
       <NoteList
         notes={notes}
@@ -571,6 +612,19 @@ export function NoteWorkspace() {
         open={workspaceAiOpen}
         onClose={() => setWorkspaceAiOpen(false)}
         onOpenNote={(noteId) => void selectNote(noteId)}
+      />
+      <CommandCenterDialog
+        open={commandCenterOpen}
+        initialView={commandCenterView}
+        notes={notes}
+        currentNote={selectedNote}
+        onClose={() => setCommandCenterOpen(false)}
+        beforeAction={async () =>
+          (await editorRef.current?.flush().catch(() => false)) ?? true
+        }
+        onCreated={handleCreated}
+        onOpenNote={(noteId) => void selectNote(noteId)}
+        onWorkspaceChanged={refreshWorkspace}
       />
     </main>
   );

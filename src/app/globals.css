@@ -2225,6 +2225,8 @@ dialog::backdrop {
 
 .organization-dialog,
 .workspace-ai-dialog,
+.command-center-dialog,
+.note-history-dialog,
 .confirm-dialog {
   padding: 0;
   overflow: hidden;
@@ -2242,6 +2244,580 @@ dialog::backdrop {
 .workspace-ai-dialog {
   width: min(50rem, calc(100vw - 2rem));
   max-height: min(48rem, calc(100dvh - 2rem));
+}
+
+.command-center-dialog,
+.note-history-dialog {
+  width: min(58rem, calc(100vw - 2rem));
+  max-height: min(48rem, calc(100dvh - 2rem));
+}
+
+.command-center-body {
+  max-height: calc(100dvh - 7rem);
+  padding: 1rem;
+  overflow: auto;
+}
+
+.command-center-heading {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  color: var(--accent);
+}
+
+.command-search {
+  height: 3rem;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0 0.8rem;
+  border: 1px solid var(--line-strong);
+  border-radius: 0.75rem;
+  background: var(--surface);
+  color: var(--muted);
+  box-shadow: 0 5px 18px color-mix(in srgb, var(--ink) 7%, transparent);
+}
+
+.command-search input {
+  height: 100%;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+}
+
+.command-search kbd,
+.command-grid kbd,
+.sidebar-command kbd {
+  padding: 0.18rem 0.36rem;
+  border: 1px solid var(--line);
+  border-radius: 0.35rem;
+  background: var(--list);
+  color: var(--subtle);
+  font: 600 0.6rem/1 var(--font-sans);
+}
+
+.sidebar-command kbd {
+  margin-left: auto;
+}
+
+.command-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.6rem;
+  margin-top: 0.85rem;
+}
+
+.command-grid > button {
+  min-height: 5rem;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 0.55rem;
+  padding: 0.8rem;
+  border: 1px solid var(--line);
+  border-radius: 0.75rem;
+  background: var(--list);
+  color: var(--accent);
+  text-align: left;
+}
+
+.command-grid > button:hover {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.command-grid > button span,
+.command-note-results button span {
+  min-width: 0;
+  display: grid;
+  gap: 0.2rem;
+}
+
+.command-grid strong,
+.command-note-results strong {
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 0.75rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.command-grid small,
+.command-note-results small {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 0.65rem;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.command-note-results {
+  display: grid;
+  gap: 0.35rem;
+  margin-top: 1rem;
+}
+
+.command-note-results h3 {
+  margin: 0.2rem 0;
+  color: var(--subtle);
+  font-size: 0.64rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.command-note-results > button {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.65rem 0.7rem;
+  border: 1px solid transparent;
+  border-radius: 0.58rem;
+  background: transparent;
+  color: var(--muted);
+  text-align: left;
+}
+
+.command-note-results > button:hover {
+  border-color: var(--line);
+  background: var(--list);
+}
+
+.command-form,
+.command-section {
+  display: grid;
+  gap: 0.8rem;
+}
+
+.command-form label,
+.inline-command-form label {
+  display: grid;
+  gap: 0.35rem;
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-weight: 700;
+}
+
+.command-form input,
+.command-form textarea,
+.inline-command-form input {
+  width: 100%;
+  padding: 0.7rem;
+  border: 1px solid var(--line);
+  border-radius: 0.65rem;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+}
+
+.command-form textarea {
+  resize: vertical;
+  min-height: 14rem;
+  line-height: 1.55;
+}
+
+.inline-command-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 0.65rem;
+  padding: 0.8rem;
+  border: 1px solid var(--line);
+  border-radius: 0.75rem;
+  background: var(--list);
+}
+
+.inline-command-form > button,
+.template-list button,
+.cleanup-intro > button {
+  min-height: 2.3rem;
+  padding: 0 0.7rem;
+  border: 1px solid var(--line);
+  border-radius: 0.55rem;
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-weight: 700;
+}
+
+.template-list,
+.cleanup-results {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.template-list article {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto auto;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.7rem;
+  border: 1px solid var(--line);
+  border-radius: 0.68rem;
+  background: var(--surface);
+}
+
+.template-list article > div {
+  min-width: 0;
+  display: grid;
+  gap: 0.18rem;
+}
+
+.template-list strong,
+.template-list small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.template-list strong {
+  font-size: 0.76rem;
+}
+
+.template-list small {
+  color: var(--muted);
+  font-size: 0.65rem;
+}
+
+.cleanup-intro {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.85rem;
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--line));
+  border-radius: 0.75rem;
+  background: color-mix(in srgb, var(--accent-soft) 35%, var(--surface));
+  color: var(--accent);
+}
+
+.cleanup-intro p {
+  margin: 0.2rem 0 0;
+  color: var(--muted);
+  font-size: 0.68rem;
+  line-height: 1.45;
+}
+
+.cleanup-intro > button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+.cleanup-results > header,
+.import-preview > header {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.6rem;
+  color: var(--muted);
+  font-size: 0.68rem;
+}
+
+.cleanup-card {
+  display: grid;
+  gap: 0.45rem;
+  padding: 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: 0.7rem;
+  background: var(--list);
+}
+
+.cleanup-card > header,
+.cleanup-card > footer {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.cleanup-card > header {
+  justify-content: space-between;
+}
+
+.cleanup-card > header span,
+.cleanup-card > header small {
+  color: var(--accent-ink);
+  font-size: 0.62rem;
+  font-weight: 760;
+  text-transform: uppercase;
+}
+
+.cleanup-card > p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.68rem;
+  line-height: 1.45;
+}
+
+.cleanup-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+
+.cleanup-tags span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.22rem 0.4rem;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+  font-size: 0.62rem;
+}
+
+.cleanup-card > footer {
+  justify-content: flex-end;
+  margin-top: 0.2rem;
+}
+
+.cleanup-card > footer button {
+  min-height: 1.9rem;
+  padding: 0 0.55rem;
+  border: 1px solid var(--line);
+  border-radius: 0.48rem;
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 0.64rem;
+  font-weight: 700;
+}
+
+.cleanup-card > footer button:last-child {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+.import-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.65rem;
+}
+
+.import-options > label {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 0.3rem 0.55rem;
+  padding: 0.8rem;
+  border: 1px solid var(--line);
+  border-radius: 0.72rem;
+  background: var(--list);
+  color: var(--accent);
+  cursor: pointer;
+}
+
+.import-options > label span,
+.import-options > label input {
+  grid-column: 2;
+}
+
+.import-options strong {
+  color: var(--ink);
+  font-size: 0.74rem;
+}
+
+.import-options span {
+  color: var(--muted);
+  font-size: 0.65rem;
+}
+
+.import-options input {
+  width: 100%;
+  color: var(--muted);
+  font-size: 0.63rem;
+}
+
+.apple-import-help,
+.import-preview {
+  display: grid;
+  gap: 0.65rem;
+  padding: 0.8rem;
+  border: 1px solid var(--line);
+  border-radius: 0.72rem;
+  background: var(--surface);
+}
+
+.apple-import-help > header {
+  display: flex;
+  align-items: start;
+  gap: 0.65rem;
+}
+
+.apple-import-help > header > span {
+  color: var(--ink);
+  font-size: 1.25rem;
+}
+
+.apple-import-help p {
+  margin: 0.2rem 0 0;
+  color: var(--muted);
+  font-size: 0.68rem;
+  line-height: 1.45;
+}
+
+.apple-import-help code {
+  padding: 0.6rem;
+  overflow-x: auto;
+  border-radius: 0.5rem;
+  background: var(--list);
+  color: var(--accent-ink);
+  font-size: 0.68rem;
+  white-space: nowrap;
+}
+
+.apple-import-help small {
+  color: var(--subtle);
+  font-size: 0.62rem;
+  line-height: 1.45;
+}
+
+.import-preview > div {
+  display: grid;
+  gap: 0.3rem;
+}
+
+.import-preview article {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 0.55rem;
+}
+
+.import-preview article > span {
+  padding: 0.2rem 0.36rem;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+  font-size: 0.56rem;
+  font-weight: 760;
+  text-transform: uppercase;
+}
+
+.import-preview article > span[data-state="existing"] {
+  background: var(--list);
+  color: var(--subtle);
+}
+
+.import-preview article > div {
+  min-width: 0;
+  display: grid;
+}
+
+.import-preview article strong,
+.import-preview article small {
+  overflow: hidden;
+  font-size: 0.68rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.import-preview article small {
+  color: var(--subtle);
+  font-size: 0.61rem;
+}
+
+.note-history-layout {
+  min-height: 30rem;
+  max-height: calc(100dvh - 7rem);
+  display: grid;
+  grid-template-columns: 18rem minmax(0, 1fr);
+}
+
+.note-history-list {
+  padding: 0.7rem;
+  overflow: auto;
+  border-right: 1px solid var(--line);
+  background: var(--list);
+}
+
+.note-history-list > button {
+  width: 100%;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: 0.5rem;
+  padding: 0.65rem;
+  border: 1px solid transparent;
+  border-radius: 0.58rem;
+  background: transparent;
+  color: var(--muted);
+  text-align: left;
+}
+
+.note-history-list > button:hover,
+.note-history-list > button[data-active] {
+  border-color: var(--line);
+  background: var(--surface);
+  color: var(--accent);
+}
+
+.note-history-list > button span {
+  display: grid;
+  gap: 0.18rem;
+}
+
+.note-history-list strong {
+  color: var(--ink);
+  font-size: 0.68rem;
+}
+
+.note-history-list small {
+  color: var(--subtle);
+  font-size: 0.6rem;
+}
+
+.note-history-preview {
+  min-width: 0;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto auto;
+  gap: 0.7rem;
+  padding: 1rem;
+  overflow: hidden;
+}
+
+.note-history-preview > header {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.6rem;
+}
+
+.note-history-preview h3 {
+  margin: 0.15rem 0 0;
+  font-size: 1rem;
+}
+
+.note-history-preview header small,
+.note-history-preview header span,
+.note-history-preview > small {
+  color: var(--subtle);
+  font-size: 0.62rem;
+}
+
+.note-history-preview pre {
+  margin: 0;
+  padding: 0.8rem;
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 0.6rem;
+  background: var(--list);
+  color: var(--ink);
+  font: 0.72rem/1.55 var(--font-mono);
+  white-space: pre-wrap;
+}
+
+.dialog-loading {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: var(--muted);
+  font-size: 0.68rem;
 }
 
 .workspace-ai-body {
@@ -3060,6 +3636,42 @@ dialog::backdrop {
   .workspace-ai-dialog {
     width: calc(100vw - 1rem);
     max-height: calc(100dvh - 1rem);
+  }
+
+  .command-center-dialog,
+  .note-history-dialog {
+    width: calc(100vw - 1rem);
+    max-height: calc(100dvh - 1rem);
+  }
+
+  .command-grid,
+  .import-options {
+    grid-template-columns: 1fr;
+  }
+
+  .inline-command-form,
+  .cleanup-intro,
+  .template-list article {
+    grid-template-columns: 1fr;
+  }
+
+  .template-list article > button {
+    justify-self: stretch;
+  }
+
+  .note-history-layout {
+    min-height: 0;
+    grid-template-columns: 1fr;
+  }
+
+  .note-history-list {
+    max-height: 12rem;
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .note-history-preview {
+    min-height: 20rem;
   }
 
   .organization-form {

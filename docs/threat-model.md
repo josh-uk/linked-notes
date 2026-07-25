@@ -8,6 +8,10 @@ Linked Notes protects one local user's notes and attachments from accidental los
 - Database values cross into rendered rich text and exports.
 - Upload streams cross into an attachment volume and later into download responses.
 - Backup archives cross into a staging area before validation and import.
+- Markdown paths, front matter, and note text cross a reviewed migration route.
+- The optional host-side Apple Notes exporter crosses macOS Automation into a
+  new user-selected local folder before its output is treated as hostile
+  Markdown.
 - Print HTML crosses into a sandboxed local Chromium process.
 - When explicitly enabled and invoked, bounded saved note text crosses from the
   application container into a user-configured local Ollama process.
@@ -83,6 +87,15 @@ saved note; and output renders as React text.
 The feature sends no attachment bytes, credentials, URLs from note content,
 editor HTML, or database connection data. There is no tool execution, cloud
 fallback, automatic note mutation, background scan, or persistent AI cache.
+
+Markdown import permits only bounded `.md` payloads and canonical relative paths
+without traversal, drive, control, or over-depth segments. Markdown is parsed
+through the same editor schema and safe-link checks as normal notes. Imported
+source identities are bounded and unique, durable target IDs must be UUIDs, and
+all database changes commit atomically after preview. The Apple exporter never
+opens the Notes private database, never deletes or edits a source note, refuses
+non-empty destinations, truncates extreme bodies, and reports locked or
+unsaveable content. Companion files are not automatically uploaded.
 
 The database and application share an internal-only backend network. Each also
 joins a frontend bridge so Docker Desktop can publish loopback-bound application

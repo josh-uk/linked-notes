@@ -52,9 +52,10 @@ and 390 × 844 mobile viewport.
   **Keep note**, not the destructive action; keyboard automation verifies focus
   wrapping and restoration to **Delete note permanently**.
 - Keyboard-only critical journeys are covered with real key events: Cmd/Ctrl+N
-  creates, Cmd/Ctrl+K focuses search, Escape clears search or closes dialogs,
-  mention suggestions accept arrows/Enter and dismiss with Escape, and dialogs
-  do not permit global shortcuts to mutate the obscured workspace.
+  creates, Cmd/Ctrl+K opens the command centre, Shift+Cmd/Ctrl+N opens quick
+  capture, Escape closes dialogs, mention suggestions accept arrows/Enter and
+  dismiss with Escape, and dialogs do not permit global shortcuts to mutate the
+  obscured workspace.
 - Landmarks expose one main workspace, labelled navigation, named note lists,
   a labelled editor region, an editor toolbar, attachment region, live save
   state, and named dialogs. Decorative icons are hidden from assistive names;

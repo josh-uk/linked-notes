@@ -10,6 +10,7 @@ import type {
   EditorDocument,
   MentionTarget,
   NoteDetail,
+  NoteHistoryPage,
   NoteLifecycleAction,
   NoteSort,
   NoteSummary,
@@ -31,6 +32,7 @@ import {
 
 const noteIdSchema = z.string().uuid();
 const cursorSchema = z.string().uuid();
+const revisionIdSchema = z.string().uuid();
 const uniqueTagIdsSchema = z
   .array(z.string().uuid())
   .max(30)
@@ -48,6 +50,7 @@ export const createNoteInputSchema = z
     title: z.string().trim().max(500).optional(),
     folderId: z.string().uuid().nullable().optional(),
     tagIds: uniqueTagIdsSchema.optional(),
+    templateId: z.string().uuid().optional(),
   })
   .strict();
 
@@ -61,6 +64,18 @@ export const updateNoteInputSchema = z
   .refine((input) => input.title !== undefined || input.content !== undefined, {
     message: "At least one note field must be supplied",
   });
+
+export const listNoteHistoryInputSchema = z.object({
+  cursor: cursorSchema.optional(),
+  limit: z.coerce.number().int().min(1).max(50).default(30),
+});
+
+export const restoreNoteRevisionInputSchema = z
+  .object({
+    revisionId: revisionIdSchema,
+    expectedVersion: z.number().int().positive(),
+  })
+  .strict();
 
 export const updateNoteOrganizationInputSchema = z
   .object({
@@ -191,13 +206,31 @@ export async function listNotes(input: ListNotesInput): Promise<NotesPage> {
 
 export async function createNote(value: unknown): Promise<NoteDetail> {
   const input = createNoteInputSchema.parse(value);
-  const derived = deriveEditorDocument(EMPTY_EDITOR_DOCUMENT);
   return prisma.$transaction(async (transaction) => {
     await assertFolderExists(transaction, input.folderId ?? null);
     await assertTagsExist(transaction, input.tagIds ?? []);
+    const template = input.templateId
+      ? await transaction.noteTemplate.findUnique({
+          where: { id: input.templateId },
+        })
+      : null;
+    if (input.templateId && !template) {
+      throw new NoteDomainError(
+        "NOTE_TEMPLATE_NOT_FOUND",
+        "That note template no longer exists",
+        404,
+      );
+    }
+    const derived = deriveEditorDocument(
+      template?.content ?? EMPTY_EDITOR_DOCUMENT,
+    );
     const note = await transaction.note.create({
       data: {
-        title: input.title?.trim() || "Untitled Note",
+        title:
+          input.title?.trim() ||
+          template?.title.trim() ||
+          template?.name ||
+          "Untitled Note",
         content: derived.content as Prisma.InputJsonValue,
         contentText: derived.plainText,
         contentHtml: derived.sanitizedHtml,
@@ -242,6 +275,21 @@ export async function updateNote(
       : deriveEditorDocument(input.content);
 
   return prisma.$transaction(async (transaction) => {
+    const current = await transaction.note.findUnique({ where: { id } });
+    if (!current) {
+      throw new NoteDomainError("NOTE_NOT_FOUND", "Note not found", 404);
+    }
+    if (current.optimisticVersion !== input.expectedVersion) {
+      await throwMissingOrConflict(transaction, id);
+    }
+    const titleChanged =
+      input.title !== undefined && input.title.slice(0, 500) !== current.title;
+    const contentChanged =
+      derived !== undefined &&
+      JSON.stringify(derived.content) !== JSON.stringify(current.content);
+    if (titleChanged || contentChanged) {
+      await captureNoteRevision(transaction, current, "edit");
+    }
     const update = await transaction.note.updateMany({
       where: { id, optimisticVersion: input.expectedVersion },
       data: {
@@ -261,6 +309,84 @@ export async function updateNote(
     });
     if (update.count === 0) await throwMissingOrConflict(transaction, id);
     if (derived) await reconcileNoteLinks(transaction, id, derived.content);
+    return detailFromTransaction(transaction, id);
+  });
+}
+
+export async function listNoteHistory(
+  id: string,
+  value: unknown,
+): Promise<NoteHistoryPage> {
+  noteIdSchema.parse(id);
+  const input = listNoteHistoryInputSchema.parse(value);
+  const note = await prisma.note.findUnique({
+    where: { id },
+    select: { id: true },
+  });
+  if (!note) throw new NoteDomainError("NOTE_NOT_FOUND", "Note not found", 404);
+  const revisions = await prisma.noteRevision.findMany({
+    where: { noteId: id },
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    take: input.limit + 1,
+    ...(input.cursor ? { cursor: { id: input.cursor }, skip: 1 } : {}),
+  });
+  const hasMore = revisions.length > input.limit;
+  const visible = hasMore ? revisions.slice(0, input.limit) : revisions;
+  return {
+    items: visible.map((revision) => ({
+      id: revision.id,
+      noteVersion: revision.noteVersion,
+      title: revision.title || "Untitled Note",
+      contentText: revision.contentText.slice(0, 20_000),
+      truncated: revision.contentText.length > 20_000,
+      reason: revision.reason === "restore" ? "restore" : "edit",
+      createdAt: revision.createdAt.toISOString(),
+    })),
+    nextCursor: hasMore ? (visible.at(-1)?.id ?? null) : null,
+  };
+}
+
+export async function restoreNoteRevision(
+  id: string,
+  value: unknown,
+): Promise<NoteDetail> {
+  noteIdSchema.parse(id);
+  const input = restoreNoteRevisionInputSchema.parse(value);
+  return prisma.$transaction(async (transaction) => {
+    const [current, revision] = await Promise.all([
+      transaction.note.findUnique({ where: { id } }),
+      transaction.noteRevision.findFirst({
+        where: { id: input.revisionId, noteId: id },
+      }),
+    ]);
+    if (!current) {
+      throw new NoteDomainError("NOTE_NOT_FOUND", "Note not found", 404);
+    }
+    if (!revision) {
+      throw new NoteDomainError(
+        "NOTE_REVISION_NOT_FOUND",
+        "That saved version no longer exists",
+        404,
+      );
+    }
+    if (current.optimisticVersion !== input.expectedVersion) {
+      await throwMissingOrConflict(transaction, id);
+    }
+    const derived = deriveEditorDocument(revision.content);
+    await captureNoteRevision(transaction, current, "restore");
+    const update = await transaction.note.updateMany({
+      where: { id, optimisticVersion: input.expectedVersion },
+      data: {
+        title: revision.title,
+        content: derived.content as Prisma.InputJsonValue,
+        contentText: derived.plainText,
+        contentHtml: derived.sanitizedHtml,
+        contentSchema: EDITOR_DOCUMENT_SCHEMA_VERSION,
+        optimisticVersion: { increment: 1 },
+      },
+    });
+    if (update.count === 0) await throwMissingOrConflict(transaction, id);
+    await reconcileNoteLinks(transaction, id, derived.content);
     return detailFromTransaction(transaction, id);
   });
 }
@@ -449,6 +575,62 @@ async function detailFromTransaction(
   );
 }
 
+async function captureNoteRevision(
+  transaction: Prisma.TransactionClient,
+  note: {
+    id: string;
+    optimisticVersion: number;
+    title: string;
+    content: Prisma.JsonValue;
+    contentText: string;
+  },
+  reason: "edit" | "restore",
+) {
+  const existing = await transaction.noteRevision.findUnique({
+    where: {
+      noteId_noteVersion: {
+        noteId: note.id,
+        noteVersion: note.optimisticVersion,
+      },
+    },
+    select: { id: true },
+  });
+  if (existing) return;
+
+  const latest = await transaction.noteRevision.findFirst({
+    where: { noteId: note.id },
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    select: { createdAt: true },
+  });
+  const withinCoalescingWindow =
+    reason === "edit" &&
+    latest &&
+    Date.now() - latest.createdAt.getTime() < 5 * 60 * 1_000;
+  if (withinCoalescingWindow) return;
+
+  await transaction.noteRevision.create({
+    data: {
+      noteId: note.id,
+      noteVersion: note.optimisticVersion,
+      title: note.title,
+      content: note.content as Prisma.InputJsonValue,
+      contentText: note.contentText,
+      reason,
+    },
+  });
+  const overflow = await transaction.noteRevision.findMany({
+    where: { noteId: note.id },
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    skip: 100,
+    select: { id: true },
+  });
+  if (overflow.length > 0) {
+    await transaction.noteRevision.deleteMany({
+      where: { id: { in: overflow.map(({ id: revisionId }) => revisionId) } },
+    });
+  }
+}
+
 async function throwMissingOrConflict(
   transaction: Prisma.TransactionClient,
   id: string,
@@ -553,6 +735,7 @@ const summarySelect = {
   trashedAt: true,
   createdAt: true,
   updatedAt: true,
+  dailyDate: true,
 } satisfies Prisma.NoteSelect;
 
 type SummaryRecord = Prisma.NoteGetPayload<{ select: typeof summarySelect }>;
@@ -586,6 +769,7 @@ function serializeDetail(
     content: note.content as EditorDocument,
     contentSchema: note.contentSchema,
     mentionTargets,
+    dailyDate: note.dailyDate?.toISOString().slice(0, 10) ?? null,
   };
 }
 

@@ -2,8 +2,7 @@ import { readServerEnvironment } from "@/lib/env";
 import { ensureAttachmentDirectoryWritable } from "@/server/attachments/attachment-storage";
 import { BACKUP_SCHEMA_VERSION } from "@/server/backups/backup-format";
 import { prisma } from "@/server/db";
-
-const DATA_SCHEMA_VERSION = 1;
+import { DATA_SCHEMA_VERSION } from "@/server/schema-version";
 
 export async function runStartupChecks() {
   try {

@@ -435,7 +435,11 @@ test("suggests folders for every unfiled note and applies only reviewed moves", 
   await page.getByRole("button", { name: "Manage folders" }).click();
   expect(suggestionRequests).toBe(0);
   await page.getByRole("button", { name: "Suggest folders" }).click();
-  await expect(page.getByText(noteTitle, { exact: true })).toBeVisible();
+  await expect(
+    page
+      .getByRole("dialog", { name: "Organize notes" })
+      .getByText(noteTitle, { exact: true }),
+  ).toBeVisible();
   expect(suggestionRequests).toBe(1);
   await expect(
     page.getByRole("checkbox", { name: `Move ${noteTitle}` }),

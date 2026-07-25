@@ -11,7 +11,7 @@ Linked Notes is a self-hosted, single-user note-taking application for people
 who want a capable desktop writing environment without an account, telemetry,
 cloud service, or runtime internet dependency. Notes, attachments, links, and
 backlinks stay in a local PostgreSQL-backed workspace and can be exported as a
-portable backup.
+portable backup or a normal Markdown folder archive.
 
 ![Linked Notes desktop workspace showing local AI writing tools, semantic search, notes, folders, and tags](docs/screenshots/linked-notes-desktop.jpg)
 
@@ -20,6 +20,12 @@ portable backup.
 - **Desktop-first workspace.** A stable three-pane layout keeps navigation,
   note selection, and writing visible together, with a responsive tablet and
   mobile flow when the window narrows.
+- **Keyboard productivity.** <kbd>Cmd</kbd>/<kbd>Ctrl</kbd>+<kbd>K</kbd> opens a
+  desktop command centre for quick capture, daily notes, templates, local-AI
+  cleanup, note opening, and workspace import/export.
+- **Recoverable writing.** Bounded note history makes earlier titles and content
+  previewable and restorable, while daily dates and reusable templates turn
+  repeated writing into explicit, editable notes.
 - **Durable note links.** Type `@` to connect a note. Links follow title changes,
   backlinks include nearby context, and removed targets remain explicit rather
   than silently disappearing.
@@ -35,8 +41,9 @@ portable backup.
   archive/trash lifecycles, bulk actions, attachment filters, and PostgreSQL
   full-text search scale with the workspace.
 - **Local files and exports.** Streamed attachments, safe image previews,
-  Markdown and deterministic PDF exports, storage reconciliation, and complete
-  portable backups are available from the desktop workspace.
+  single-note Markdown and deterministic PDF exports, full Markdown workspace
+  archives, reviewed Markdown/Apple Notes migration, storage reconciliation,
+  and complete portable backups are available from the desktop workspace.
 - **Operationally boring.** Docker Compose, loopback-only defaults, a read-only
   application container, one-shot migrations, health checks, multi-architecture
   images, SBOMs, checksums, and rehearsed restore paths make the workspace
@@ -111,6 +118,12 @@ actions runs in the background or mutates notes automatically.
 
 ![Ask your notes showing a grounded local AI answer with its source note](docs/screenshots/linked-notes-ai-workspace.jpg)
 
+Open the command centre and choose **AI cleanup** to scan for likely duplicates,
+useful links, missing tags, generic titles, and stale notes. The queue is
+review-only: each suggestion can be opened, dismissed, or explicitly applied.
+
+![Desktop local-AI workspace cleanup queue with reviewable title and tag suggestions](docs/screenshots/workspace-cleanup-desktop.png)
+
 Ollama needs internet access only while models are pulled. Inference requests
 travel from the app container to the configured host endpoint and are not sent
 to Ollama's cloud or another provider. Keep Ollama local, do not configure a
@@ -123,7 +136,7 @@ The public release images support Linux amd64 and arm64. Check out the matching
 release source so the Compose file and both images stay in lockstep:
 
 ```bash
-git clone --branch v1.0.0 --depth 1 https://github.com/josh-uk/linked-notes.git
+git clone --branch v1.1.0 --depth 1 https://github.com/josh-uk/linked-notes.git
 cd linked-notes
 cp .env.example .env
 ```
@@ -131,8 +144,8 @@ cp .env.example .env
 Set a unique password in `.env`, then set these matching image values:
 
 ```dotenv
-APP_IMAGE=ghcr.io/josh-uk/linked-notes:1.0.0
-MIGRATE_IMAGE=ghcr.io/josh-uk/linked-notes-migrate:1.0.0
+APP_IMAGE=ghcr.io/josh-uk/linked-notes:1.1.0
+MIGRATE_IMAGE=ghcr.io/josh-uk/linked-notes-migrate:1.1.0
 ```
 
 Pull and start the public images; no GitHub sign-in is required:
@@ -152,6 +165,13 @@ For upgrades and recovery, follow [releases and upgrades](docs/releases.md) and
 - Choose **New** or press <kbd>Ctrl</kbd>/<kbd>Cmd</kbd>+<kbd>N</kbd> to create a
   note. The save indicator reports unsaved, saving, saved, failed, and conflict
   states.
+- Press <kbd>Ctrl</kbd>/<kbd>Cmd</kbd>+<kbd>K</kbd> for the command centre or
+  <kbd>Shift</kbd>+<kbd>Ctrl</kbd>/<kbd>Cmd</kbd>+<kbd>N</kbd> for quick capture.
+  Open today's note, create from a template, or save the current note as a
+  reusable template without leaving the desktop workspace.
+- Choose **Version history** in the editor header to preview an earlier saved
+  title and body before restoring it. A restore captures the current content as
+  another recoverable version.
 - Type `@` to search active notes and insert a durable link. Select a mention to
   open its target; expand **Backlinks** to review source notes and context.
 - Expand **AI assistant** to run a local summary, connection scan, or previewed
@@ -163,8 +183,10 @@ For upgrades and recovery, follow [releases and upgrades](docs/releases.md) and
 - Open **Folders → Suggest folders** to review local-AI destinations for every
   non-empty unfiled note. Low-confidence suggestions start unselected and every
   destination remains editable before applying.
-- Press <kbd>Ctrl</kbd>/<kbd>Cmd</kbd>+<kbd>K</kbd> to focus full-text search.
-  Search combines with folder, tag, lifecycle, and attachment filters.
+- Open **AI cleanup** from the command centre to review workspace-wide duplicate,
+  link, tag, title, and stale-note suggestions. It runs only when clicked.
+- Search from the note list combines with folder, tag, lifecycle, and attachment
+  filters; switch to **Meaning** only when semantic ranking is useful.
 - Create nested folders and coloured tags from the left sidebar. Selection mode
   applies move, tag, pin, archive, restore, or trash actions to up to 100 notes
   transactionally.
@@ -172,9 +194,36 @@ For upgrades and recovery, follow [releases and upgrades](docs/releases.md) and
   images receive safe previews; every supported file remains downloadable.
 - Export the selected note as Markdown or PDF from its desktop editor header.
   PDF export can include local images, metadata, and bounded backlink context.
+- Choose **Export Markdown** in the command centre for a gzip-compressed folder
+  archive of every note plus attachment bytes. **Import notes** previews up to
+  100 Markdown files, preserves nested folders and tags, reconnects exported
+  note links, and skips an already imported source by default.
 - Use **Settings → Portable backup** to download or restore the complete
   versioned workspace. Replace restore requires an explicit confirmation and
   produces a safety backup before changing live data.
+
+### Import from Apple Notes on macOS
+
+Apple Notes has no built-in bulk export. From a source checkout, run the
+included host-side exporter into a new or empty folder:
+
+```bash
+npm ci
+npm run apple-notes:export -- ~/Desktop/linked-notes-apple-import
+```
+
+macOS asks whether Terminal may control Notes. The exporter uses Notes'
+automation interface—not its private database—to preserve accounts, nested
+folders, titles, note text, and creation/modification dates as Markdown. It also
+copies attachments Apple permits into companion folders and records locked,
+truncated, or unsaveable items in `apple-notes-import-report.json`.
+
+Then open Linked Notes, press <kbd>Cmd</kbd>+<kbd>K</kbd>, choose **Import
+notes**, select the generated folder, review the preview, and import. Repeating
+the same migration is safe because Apple note identities are retained and
+already imported sources are skipped. Companion attachment files are not
+automatically attached to the new notes; upload any you want to retain after
+review. See the complete [import and export guide](docs/import-export.md).
 
 ## Data safety
 
@@ -225,7 +274,7 @@ browser, performance, Compose, and release-image suites. See
 | Area       | Guide                                                                                                              |
 | ---------- | ------------------------------------------------------------------------------------------------------------------ |
 | Design     | [Architecture](docs/architecture.md), [ADRs](docs/adr), [accessibility](docs/accessibility.md)                     |
-| Data       | [Backup format](docs/backup-format.md), [attachments](docs/attachments.md)                                         |
+| Data       | [Backup format](docs/backup-format.md), [import/export](docs/import-export.md), [attachments](docs/attachments.md) |
 | Operations | [Operations](docs/operations.md), [troubleshooting](docs/troubleshooting.md), [releases](docs/releases.md)         |
 | Assurance  | [Threat model](docs/threat-model.md), [security audit](docs/security-audit.md), [performance](docs/performance.md) |
 | Project    | [Contributing](CONTRIBUTING.md), [security policy](SECURITY.md), [changelog](CHANGELOG.md)                         |

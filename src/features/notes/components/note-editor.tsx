@@ -11,6 +11,7 @@ import {
   FileDown,
   FileText,
   FolderClosed,
+  History,
   LoaderCircle,
   Pin,
   PinOff,
@@ -51,6 +52,7 @@ import {
   type AttachmentPanelHandle,
 } from "./attachment-panel";
 import { PermanentDeleteDialog } from "./permanent-delete-dialog";
+import { NoteHistoryDialog } from "./note-history-dialog";
 
 type SaveState = "saved" | "unsaved" | "saving" | "error" | "conflict";
 
@@ -94,6 +96,7 @@ export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
       useState<RecoverableDraft | null>(null);
     const [actionPending, setActionPending] = useState(false);
     const [confirmPermanentDelete, setConfirmPermanentDelete] = useState(false);
+    const [historyOpen, setHistoryOpen] = useState(false);
     const [dragActive, setDragActive] = useState(false);
     const [aiRevision, setAiRevision] = useState(0);
     const [aiSelection, setAiSelection] = useState<AiEditorSelection | null>(
@@ -496,6 +499,41 @@ export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
       window.location.assign(`/api/notes/${note.id}/export?${query}`);
     }
 
+    async function restoreHistory(revisionId: string) {
+      try {
+        const response = await fetch(`/api/notes/${note.id}/history`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            revisionId,
+            expectedVersion: versionRef.current,
+          }),
+        });
+        const payload = (await response.json()) as NoteDetail | ApiError;
+        if (!response.ok || "error" in payload) {
+          return "error" in payload
+            ? payload.error.message
+            : "The saved version could not be restored";
+        }
+        titleRef.current = payload.title;
+        contentRef.current = payload.content;
+        versionRef.current = payload.optimisticVersion;
+        revisionRef.current = 0;
+        savedRevisionRef.current = 0;
+        setTitle(payload.title);
+        editor?.commands.setContent(payload.content, { emitUpdate: false });
+        setAiRevision((revision) => revision + 1);
+        setSaveState("saved");
+        clearPersistedDraft(note.id);
+        onSaved(payload);
+        return null;
+      } catch (restoreError) {
+        return restoreError instanceof Error
+          ? restoreError.message
+          : "The saved version could not be restored";
+      }
+    }
+
     function insertAiSummary(bullets: string[]) {
       if (!editor) return;
       editor
@@ -627,6 +665,17 @@ export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
             <span>{saveLabel(saveState)}</span>
           </div>
           <div className="editor-actions">
+            <button
+              type="button"
+              className="icon-button"
+              aria-label="Open note history"
+              title="Version history"
+              onClick={async () => {
+                if (await flush()) setHistoryOpen(true);
+              }}
+            >
+              <History size={18} aria-hidden="true" />
+            </button>
             <button
               type="button"
               className="icon-button"
@@ -898,6 +947,13 @@ export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
           noteTitle={note.title}
           onCancel={() => setConfirmPermanentDelete(false)}
           onConfirm={permanentlyDelete}
+        />
+        <NoteHistoryDialog
+          open={historyOpen}
+          noteId={note.id}
+          currentText={editor?.getText() ?? ""}
+          onClose={() => setHistoryOpen(false)}
+          onRestore={restoreHistory}
         />
       </section>
     );
