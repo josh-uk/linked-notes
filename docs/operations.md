@@ -17,6 +17,13 @@ The default ports bind only to loopback. `APP_HOST=0.0.0.0` exposes a completely
 unauthenticated private workspace to the attached network and is not a supported
 security boundary.
 
+The optional AI integration introduced in 1.1.0 is disabled by default. On
+macOS, run Ollama natively to use Metal and keep the application and PostgreSQL
+in Docker. Linked Notes reaches the loopback-only host service through
+`host.docker.internal`; do not deliberately expose Ollama to the LAN. Model
+installation and the private environment settings are documented in the
+project README.
+
 ## Start, stop, restart, and health
 
 ```bash
@@ -76,6 +83,10 @@ Use the exact procedure in [releases and upgrades](releases.md). The migration
 container is deliberately separate from the app: a failed migration exits
 non-zero and prevents app replacement. Do not bypass it by starting the runner
 manually against an unknown schema.
+
+The 1.0.0 to 1.1.0 upgrade has no database migration and does not persist
+embeddings or generated AI output outside normal note edits. AI results remain
+review-only until a user explicitly inserts, replaces, or applies them.
 
 Weekly GitHub maintenance runs the complete quality, PostgreSQL integration,
 migration, browser, and release-image suite. Security scanning also runs weekly.

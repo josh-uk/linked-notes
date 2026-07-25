@@ -4,6 +4,42 @@ All notable changes to Linked Notes will be documented in this file. The format 
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-07-25
+
+### Added
+
+- Entirely local, click-to-run note summarisation and connection discovery using
+  native Ollama with configurable chat and embedding models.
+- Grounded **Ask notes** answers with clickable citations, explicit semantic
+  search with existing workspace filters, and bounded result pagination.
+- Reviewable folder suggestions for active and archived unfiled notes, including
+  confidence levels, per-note folder correction, and opt-in application.
+- Selection writing tools to shorten, clarify, proofread, create bullets, expand,
+  change tone, or translate text, with preview-before-replace and insert-after
+  controls.
+- Bounded in-process embedding caching, structured-output validation, idle model
+  unloading, local-service status reporting, and actionable unavailable,
+  missing-model, timeout, and stale-result errors.
+- Desktop-first AI panels and dialogs with responsive mobile behavior, local
+  privacy guidance, configuration documentation, screenshots, and browser
+  coverage proving AI never runs automatically.
+
+### Changed
+
+- Published the repository and GHCR packages for unauthenticated public use and
+  expanded the installation, architecture, operations, security, and
+  troubleshooting documentation.
+- Made generated release checksums portable across GNU and BSD `sha256sum`
+  verification environments.
+
+### Fixed
+
+- Prevented theme hydration differences from causing an accessibility-test and
+  first-render mismatch.
+
+[Unreleased]: https://github.com/josh-uk/linked-notes/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/josh-uk/linked-notes/compare/v1.0.0...v1.1.0
+
 ## [1.0.0] - 2026-07-19
 
 ### Added
@@ -66,5 +102,4 @@ All notable changes to Linked Notes will be documented in this file. The format 
   validated SemVer releases, generated release notes, SPDX SBOMs, provenance,
   scheduled maintenance, and complete operations/upgrade/recovery guidance.
 
-[Unreleased]: https://github.com/josh-uk/linked-notes/compare/v1.0.0...HEAD
 [1.0.0]: https://github.com/josh-uk/linked-notes/releases/tag/v1.0.0

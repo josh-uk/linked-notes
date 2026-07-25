@@ -38,8 +38,8 @@ Moving tags are conveniences. Pin `X.Y.Z` for a release line or the digest from
 4. Put matching image values in `.env`, for example:
 
    ```dotenv
-   APP_IMAGE=ghcr.io/josh-uk/linked-notes:1.0.0
-   MIGRATE_IMAGE=ghcr.io/josh-uk/linked-notes-migrate:1.0.0
+   APP_IMAGE=ghcr.io/josh-uk/linked-notes:1.1.0
+   MIGRATE_IMAGE=ghcr.io/josh-uk/linked-notes-migrate:1.1.0
    ```
 
 5. Pull and start. Compose runs the one-shot migration before it replaces the
@@ -59,6 +59,26 @@ The first supported public release is `1.0.0`; there is no promised upgrade path
 from an external `0.x` release. CI still proves the earliest repository schema
 upgrades through every committed migration while preserving notes and durable
 links.
+
+## 1.1.0 upgrade notes
+
+Version 1.1.0 adds the optional local Ollama integration, semantic workspace
+tools, grounded note questions, folder suggestions, and selection writing
+actions. AI remains disabled unless `AI_ENABLED=true` is added to the private
+environment file; an existing 1.0.0 installation continues to work without
+Ollama or either model.
+
+There are no database schema migrations between 1.0.0 and 1.1.0, and no
+persistent AI data is introduced. Embeddings stay in bounded process memory and
+are regenerated after an app restart. Before upgrading, still create and verify
+a portable backup, record both current image digests, and run the migration
+container supplied with 1.1.0. To enable AI after the upgrade, follow the model
+installation and private configuration steps in the project README.
+
+Rollback to 1.0.0 does not require a database downgrade. Stop the 1.1.0 app and
+restore both matching 1.0.0 image tags. If notes were edited after the upgrade,
+retain the current database and attachment volumes; use the pre-upgrade portable
+backup only when a coordinated recovery to that earlier point is intended.
 
 ## Rollback and recovery
 
@@ -96,8 +116,8 @@ as an upgrade or rollback command.
    ```bash
    git switch master
    git pull --ff-only origin master
-   git tag -a v1.0.0 -m "Linked Notes 1.0.0"
-   git push origin v1.0.0
+   git tag -a v1.1.0 -m "Linked Notes 1.1.0"
+   git push origin v1.1.0
    ```
 
 5. Do not move or recreate a published release tag. Watch the `Release`
@@ -111,9 +131,9 @@ as an upgrade or rollback command.
 ## Verify release evidence
 
 ```bash
-docker buildx imagetools inspect ghcr.io/josh-uk/linked-notes:1.0.0
-docker buildx imagetools inspect ghcr.io/josh-uk/linked-notes-migrate:1.0.0
-gh release download v1.0.0 --repo josh-uk/linked-notes --dir release-evidence
+docker buildx imagetools inspect ghcr.io/josh-uk/linked-notes:1.1.0
+docker buildx imagetools inspect ghcr.io/josh-uk/linked-notes-migrate:1.1.0
+gh release download v1.1.0 --repo josh-uk/linked-notes --dir release-evidence
 (cd release-evidence && sha256sum -c SHA256SUMS)
 ```
 
