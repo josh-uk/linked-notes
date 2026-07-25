@@ -11,6 +11,7 @@ import { prisma } from "@/server/db";
 import { deleteStoredFiles } from "@/server/attachments/attachment-storage";
 import { NoteDomainError } from "@/server/notes/note-errors";
 import { deriveEditorDocument } from "@/server/notes/derive-document";
+import { DATA_SCHEMA_VERSION } from "@/server/schema-version";
 
 import {
   generateWorkspaceBackup,
@@ -57,6 +58,12 @@ type RestorePlan = {
       contentHtml: string;
     }
   >;
+  revisionCreates: Array<
+    Omit<BackupManifest["entities"]["noteRevisions"][number], "content"> & {
+      content: ReturnType<typeof remapEditorDocumentTargets>;
+    }
+  >;
+  templateCreates: BackupManifest["entities"]["noteTemplates"];
   noteTagCreates: BackupManifest["entities"]["noteTags"];
   noteLinkCreates: BackupManifest["entities"]["noteLinks"];
   attachmentCreates: Array<
@@ -77,6 +84,8 @@ type RestorePlan = {
     attachmentIdsRemapped: number;
     missingTargetKeysRemapped: number;
     settingsImported: number;
+    revisionsImported: number;
+    templatesImported: number;
   };
 };
 
@@ -160,16 +169,29 @@ export async function restoreWorkspaceBackup(
 }
 
 async function readCurrentWorkspace() {
-  const [folders, tags, notes, attachments, settings] = await Promise.all([
-    prisma.folder.findMany({ orderBy: { id: "asc" } }),
-    prisma.tag.findMany({ orderBy: { id: "asc" } }),
-    prisma.note.findMany({ select: { id: true } }),
-    prisma.attachment.findMany({
-      select: { id: true, storageName: true },
-    }),
-    prisma.setting.findMany({ select: { key: true } }),
-  ]);
-  return { folders, tags, notes, attachments, settings };
+  const [folders, tags, notes, revisions, attachments, settings, templates] =
+    await Promise.all([
+      prisma.folder.findMany({ orderBy: { id: "asc" } }),
+      prisma.tag.findMany({ orderBy: { id: "asc" } }),
+      prisma.note.findMany({
+        select: { id: true, sourceType: true, sourceId: true },
+      }),
+      prisma.noteRevision.findMany({ select: { id: true } }),
+      prisma.attachment.findMany({
+        select: { id: true, storageName: true },
+      }),
+      prisma.setting.findMany({ select: { key: true } }),
+      prisma.noteTemplate.findMany({ select: { id: true, name: true } }),
+    ]);
+  return {
+    folders,
+    tags,
+    notes,
+    revisions,
+    attachments,
+    settings,
+    templates,
+  };
 }
 
 function buildRestorePlan(
@@ -185,6 +207,12 @@ function buildRestorePlan(
   );
   const usedAttachmentIds = new Set(
     replace ? [] : current.attachments.map(({ id }) => id),
+  );
+  const usedRevisionIds = new Set(
+    replace ? [] : current.revisions.map(({ id }) => id),
+  );
+  const usedTemplateIds = new Set(
+    replace ? [] : current.templates.map(({ id }) => id),
   );
   const usedStorageNames = new Set(
     current.attachments.map(({ storageName }) => storageName),
@@ -227,21 +255,68 @@ function buildRestorePlan(
     );
   }
 
+  const usedSources = new Set(
+    replace
+      ? []
+      : current.notes
+          .filter(
+            (
+              note,
+            ): note is typeof note & {
+              sourceType: string;
+              sourceId: string;
+            } => Boolean(note.sourceType && note.sourceId),
+          )
+          .map(({ sourceType, sourceId }) => `${sourceType}\0${sourceId}`),
+  );
   const noteCreates = manifest.entities.notes.map((note) => {
     const content = remapEditorDocumentTargets(
       note.content as EditorDocument,
       targetIds,
     );
     const derived = deriveEditorDocument(content);
+    const sourceKey =
+      note.sourceType && note.sourceId
+        ? `${note.sourceType}\0${note.sourceId}`
+        : null;
+    const preserveSource = sourceKey ? !usedSources.has(sourceKey) : false;
+    if (sourceKey && preserveSource) usedSources.add(sourceKey);
     return {
       ...note,
       id: noteIds.get(note.id)!,
       folderId: note.folderId ? folderPlan.ids.get(note.folderId)! : null,
+      sourceType: preserveSource ? note.sourceType : null,
+      sourceId: preserveSource ? note.sourceId : null,
       content,
       contentText: derived.plainText,
       contentHtml: derived.sanitizedHtml,
     };
   });
+  const revisionCreates = manifest.entities.noteRevisions.map((revision) => ({
+    ...revision,
+    id: allocatePreferredUuid(revision.id, usedRevisionIds),
+    noteId: noteIds.get(revision.noteId)!,
+    content: remapEditorDocumentTargets(
+      revision.content as EditorDocument,
+      targetIds,
+    ),
+  }));
+  const existingTemplateNames = new Set(
+    replace
+      ? []
+      : current.templates.map(({ name }) => name.trim().toLocaleLowerCase()),
+  );
+  const templateCreates = manifest.entities.noteTemplates
+    .filter(
+      ({ name }) => !existingTemplateNames.has(name.trim().toLocaleLowerCase()),
+    )
+    .map((template) => {
+      existingTemplateNames.add(template.name.trim().toLocaleLowerCase());
+      return {
+        ...template,
+        id: allocatePreferredUuid(template.id, usedTemplateIds),
+      };
+    });
   const noteTagCreates = manifest.entities.noteTags.map((relation) => ({
     noteId: noteIds.get(relation.noteId)!,
     tagId: tagPlan.ids.get(relation.tagId)!,
@@ -270,6 +345,8 @@ function buildRestorePlan(
     folderCreates: folderPlan.creates,
     tagCreates: tagPlan.creates,
     noteCreates,
+    revisionCreates,
+    templateCreates,
     noteTagCreates,
     noteLinkCreates,
     attachmentCreates,
@@ -287,6 +364,8 @@ function buildRestorePlan(
       attachmentIdsRemapped: countChanged(attachmentIds),
       missingTargetKeysRemapped,
       settingsImported: settingCreates.length,
+      revisionsImported: revisionCreates.length,
+      templatesImported: templateCreates.length,
     },
   };
 }
@@ -456,11 +535,42 @@ async function applyRestorePlan(plan: RestorePlan, manifest: BackupManifest) {
             contentSchema: note.contentSchema,
             optimisticVersion: note.optimisticVersion,
             folderId: note.folderId,
+            dailyDate: note.dailyDate
+              ? new Date(`${note.dailyDate}T00:00:00Z`)
+              : null,
+            sourceType: note.sourceType,
+            sourceId: note.sourceId,
             pinnedAt: note.pinnedAt ? new Date(note.pinnedAt) : null,
             archivedAt: note.archivedAt ? new Date(note.archivedAt) : null,
             trashedAt: note.trashedAt ? new Date(note.trashedAt) : null,
             createdAt: new Date(note.createdAt),
             updatedAt: new Date(note.updatedAt),
+          })),
+        });
+      }
+      if (plan.revisionCreates.length) {
+        await transaction.noteRevision.createMany({
+          data: plan.revisionCreates.map((revision) => ({
+            id: revision.id,
+            noteId: revision.noteId,
+            noteVersion: revision.noteVersion,
+            title: revision.title,
+            content: revision.content as Prisma.InputJsonValue,
+            contentText: revision.contentText,
+            reason: revision.reason,
+            createdAt: new Date(revision.createdAt),
+          })),
+        });
+      }
+      if (plan.templateCreates.length) {
+        await transaction.noteTemplate.createMany({
+          data: plan.templateCreates.map((template) => ({
+            id: template.id,
+            name: template.name,
+            title: template.title,
+            content: template.content as Prisma.InputJsonValue,
+            createdAt: new Date(template.createdAt),
+            updatedAt: new Date(template.updatedAt),
           })),
         });
       }
@@ -507,10 +617,11 @@ async function applyRestorePlan(plan: RestorePlan, manifest: BackupManifest) {
           where: { id: 1 },
           create: {
             ...manifest.entities.schemaMetadata,
+            dataSchemaVersion: DATA_SCHEMA_VERSION,
             updatedAt: new Date(manifest.entities.schemaMetadata.updatedAt),
           },
           update: {
-            dataSchemaVersion: manifest.dataSchemaVersion,
+            dataSchemaVersion: DATA_SCHEMA_VERSION,
             backupSchemaVersion: manifest.backupSchemaVersion,
             updatedAt: new Date(manifest.entities.schemaMetadata.updatedAt),
           },

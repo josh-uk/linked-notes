@@ -142,6 +142,14 @@ for every non-empty unfiled note; low-confidence matches start unselected.
 Applying reviewed suggestions uses the existing optimistic-version bulk move
 path in batches of 100.
 
+Workspace cleanup runs only from the command centre. It embeds at most 1,000
+non-trashed notes, constructs a bounded similarity shortlist, and asks the chat
+model only about supplied candidates. Server validation drops unknown IDs,
+unshortlisted pairs, low-confidence results, already linked pairs, and
+type-incomplete actions. Suggested rename, tags, archive, or mention changes use
+normal optimistic note routes after explicit acceptance; duplicates are
+review-only and never auto-merged.
+
 Selection writing accepts at most 24,000 characters from text that the server
 verifies is still present in the saved note, and sends at most 6,000 characters
 to the chat model. Shorten, clarify, proofread, bullets, expansion, tone, and
@@ -154,6 +162,32 @@ are ephemeral and tied to the editor revision that requested them. The only
 write actions convert reviewed bullets into supported Tiptap list nodes or a
 reviewed candidate into the existing UUID-backed mention node; both then use the
 ordinary validated optimistic save and link-reconciliation path.
+
+## Productivity, history, and migration
+
+The desktop command centre is a client-only navigation surface over normal
+same-origin routes. It never runs AI or imports on open. Quick capture creates a
+normal Tiptap document, daily notes use a unique PostgreSQL `date`, and reusable
+templates store validated editor JSON. Dates are supplied by the browser so
+"today" follows the user's local calendar rather than the container timezone.
+
+Before a changed note is saved, the transaction captures its previous title and
+canonical content. Edit snapshots coalesce within a five-minute window, restore
+always captures the current version, and only the newest 100 revisions per note
+remain. Restore uses the same optimistic version and link reconciliation as an
+ordinary edit.
+
+Markdown import is a two-step preview/commit request with bounded file counts,
+text sizes, paths, front matter, tags, dates, and editor documents. Source
+identity prevents accidental re-import. All imported note IDs are allocated
+before content is written, allowing durable links between selected files to be
+remapped transactionally. Folder/tag creation and link reconciliation complete
+inside one serializable transaction.
+
+The macOS Apple Notes exporter runs outside Docker with the user's normal
+Automation permission. It uses Notes' public scripting dictionary, not its
+private database. Its output crosses the existing hostile Markdown import
+boundary and receives no elevated trust.
 
 ## Attachment ingestion and integrity
 

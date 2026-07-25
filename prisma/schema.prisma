@@ -19,6 +19,9 @@ model Note {
   pinnedAt          DateTime?
   archivedAt        DateTime?
   trashedAt         DateTime?
+  dailyDate         DateTime?    @unique @db.Date
+  sourceType        String?      @db.VarChar(50)
+  sourceId          String?      @db.VarChar(1000)
   createdAt         DateTime     @default(now())
   updatedAt         DateTime     @updatedAt
   folder            Folder?      @relation(fields: [folderId], references: [id], onDelete: SetNull)
@@ -26,10 +29,38 @@ model Note {
   outboundLinks     NoteLink[]   @relation("SourceNote")
   inboundLinks      NoteLink[]   @relation("TargetNote")
   attachments       Attachment[]
+  revisions         NoteRevision[]
 
   @@index([folderId, updatedAt(sort: Desc)])
   @@index([pinnedAt, updatedAt(sort: Desc)])
   @@index([archivedAt, trashedAt, updatedAt(sort: Desc), id(sort: Desc)])
+  @@unique([sourceType, sourceId])
+}
+
+model NoteRevision {
+  id          String   @id @default(uuid()) @db.Uuid
+  noteId      String   @db.Uuid
+  noteVersion Int
+  title       String   @db.VarChar(500)
+  content     Json
+  contentText String   @default("")
+  reason      String   @default("edit") @db.VarChar(32)
+  createdAt   DateTime @default(now())
+  note        Note     @relation(fields: [noteId], references: [id], onDelete: Cascade)
+
+  @@unique([noteId, noteVersion])
+  @@index([noteId, createdAt(sort: Desc), id(sort: Desc)])
+}
+
+model NoteTemplate {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String   @unique @db.VarChar(200)
+  title     String   @default("") @db.VarChar(500)
+  content   Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([updatedAt(sort: Desc), id(sort: Desc)])
 }
 
 model Folder {

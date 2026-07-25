@@ -350,7 +350,7 @@ async function assertCompatibleVersions(manifest: BackupManifest) {
     );
   }
   const current = await prisma.schemaMetadata.findUnique({ where: { id: 1 } });
-  if (!current || manifest.dataSchemaVersion !== current.dataSchemaVersion) {
+  if (!current || manifest.dataSchemaVersion > current.dataSchemaVersion) {
     throw new NoteDomainError(
       "BACKUP_DATA_VERSION_UNSUPPORTED",
       "The backup data schema is not compatible with this installation",

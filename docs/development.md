@@ -40,6 +40,13 @@ backlinks, lifecycle states, permanent-target deletion, broken references, and
 link removal. To run browser tests against an already-running development server,
 set `PLAYWRIGHT_EXTERNAL_SERVER=1` and `PLAYWRIGHT_BASE_URL`.
 
+Productivity coverage adds coalesced history/restore, daily-note idempotency,
+template creation, Markdown parsing and transactionality, source idempotency,
+durable-link remapping, command-centre quick capture, and click-only AI cleanup.
+The macOS Apple Notes exporter's `--help` path is platform-safe; do not run a
+real export in CI because it requires a signed-in GUI Notes session and explicit
+Automation permission.
+
 The migration harness creates two explicitly named disposable databases through
 `MIGRATION_TEST_DATABASE_URL`: one receives every migration from empty, while
 the other receives only the earliest repository migration, real note/link rows,

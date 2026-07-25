@@ -31,9 +31,10 @@ The strict JSON manifest records:
 - format name, backup-schema version, data-schema version, application version,
   and UTC creation time;
 - schema metadata, folders, tags, canonical Tiptap note JSON, note/tag joins,
-  durable note-link rows, typed settings, and attachment metadata;
+  durable note-link rows, bounded note revisions, reusable templates, typed
+  settings, and attachment metadata;
 - original entity IDs and timestamps, lifecycle state, optimistic versions, and
-  folder/tag/link relationships; and
+  folder/tag/link relationships, daily dates, and import source identities; and
 - each attachment's deterministic archive path, byte count, detected MIME type,
   optional image dimensions, and SHA-256.
 
@@ -104,7 +105,15 @@ name under the same mapped parent and tags with the same normalized name map to
 the existing entity. Imported settings only fill missing keys. Note JSON,
 normalized link rows, attachment ownership, and durable missing-target keys are
 remapped together, preserving internal links without pointing at an unrelated
-existing note.
+existing note. Revision IDs follow their remapped notes; template names map
+without overwriting an existing template. A colliding import-source identity is
+cleared on the merged copy so PostgreSQL uniqueness remains intact.
+
+Backup schema 1 is a backward-compatible envelope. A current installation
+accepts a manifest data-schema version no newer than its own. Fields introduced
+after data schema 1 have safe defaults, so an older backup restores into the
+current schema while current metadata remains at the installed data-schema
+version. Backups from a future data schema remain rejected.
 
 **Replace** requires typing the exact word `REPLACE`; the server enforces this
 independently of the UI. After full validation and before moving imported bytes,

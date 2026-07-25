@@ -2,6 +2,7 @@
 
 import {
   Archive,
+  Command,
   FileText,
   FolderClosed,
   Hash,
@@ -28,6 +29,7 @@ type AppSidebarProps = {
   onTagChange: (tagId: string) => void;
   onManageOrganization: (section: "folders" | "tags" | "settings") => void;
   onOpenNotes: () => void;
+  onOpenCommandCenter: () => void;
 };
 
 const navigation = [
@@ -51,6 +53,7 @@ export function AppSidebar({
   onTagChange,
   onManageOrganization,
   onOpenNotes,
+  onOpenCommandCenter,
 }: AppSidebarProps) {
   const { theme, setTheme } = useTheme();
   const themeMounted = useSyncExternalStore(
@@ -185,6 +188,16 @@ export function AppSidebar({
       </section>
 
       <div className="sidebar-bottom">
+        <button
+          type="button"
+          className="sidebar-item sidebar-command"
+          title="Open command centre (Command K)"
+          onClick={onOpenCommandCenter}
+        >
+          <Command size={17} aria-hidden="true" />
+          <span>Command centre</span>
+          <kbd>⌘K</kbd>
+        </button>
         <label className="theme-control">
           <span>Theme</span>
           <span className="theme-select-wrap" suppressHydrationWarning>

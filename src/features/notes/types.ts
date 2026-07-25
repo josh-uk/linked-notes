@@ -38,6 +38,36 @@ export type NoteDetail = NoteSummary & {
   content: EditorDocument;
   contentSchema: number;
   mentionTargets: MentionTarget[];
+  dailyDate: string | null;
+};
+
+export type NoteRevisionSummary = {
+  id: string;
+  noteVersion: number;
+  title: string;
+  contentText: string;
+  truncated: boolean;
+  reason: "edit" | "restore";
+  createdAt: string;
+};
+
+export type NoteHistoryPage = {
+  items: NoteRevisionSummary[];
+  nextCursor: string | null;
+};
+
+export type NoteTemplateSummary = {
+  id: string;
+  name: string;
+  title: string;
+  content: EditorDocument;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type DailyNoteResponse = {
+  note: NoteDetail;
+  created: boolean;
 };
 
 export type MentionTargetState = "active" | "archived" | "trashed" | "missing";
@@ -171,6 +201,27 @@ export type AiFolderSuggestionsResponse = {
   unfiledNotes: number;
   scannedNotes: number;
   scannedFolders: number;
+  scanLimitReached: boolean;
+};
+
+export type AiCleanupSuggestion = {
+  id: string;
+  type:
+    "duplicate" | "missing-tags" | "clearer-title" | "stale" | "related-link";
+  noteId: string;
+  noteTitle: string;
+  expectedVersion: number;
+  targetNoteId: string | null;
+  targetNoteTitle: string | null;
+  confidence: number;
+  reason: string;
+  suggestedTitle: string | null;
+  suggestedTags: string[];
+};
+
+export type AiCleanupResponse = {
+  suggestions: AiCleanupSuggestion[];
+  scannedNotes: number;
   scanLimitReached: boolean;
 };
 

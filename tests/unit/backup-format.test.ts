@@ -23,6 +23,29 @@ describe("backup format", () => {
     );
   });
 
+  it("accepts a version 1 manifest created before histories and templates existed", () => {
+    const legacyManifest = structuredClone(minimalManifest());
+    for (const note of legacyManifest.entities.notes) {
+      Reflect.deleteProperty(note, "dailyDate");
+      Reflect.deleteProperty(note, "sourceType");
+      Reflect.deleteProperty(note, "sourceId");
+    }
+    Reflect.deleteProperty(legacyManifest.entities, "noteRevisions");
+    Reflect.deleteProperty(legacyManifest.entities, "noteTemplates");
+
+    expect(parseBackupManifest(legacyManifest).entities).toMatchObject({
+      notes: [
+        {
+          dailyDate: null,
+          sourceType: null,
+          sourceId: null,
+        },
+      ],
+      noteRevisions: [],
+      noteTemplates: [],
+    });
+  });
+
   it.each([
     "../manifest.json",
     "/manifest.json",
@@ -132,6 +155,9 @@ function minimalManifest(): BackupManifest {
           contentSchema: 1,
           optimisticVersion: 1,
           folderId: null,
+          dailyDate: null,
+          sourceType: null,
+          sourceId: null,
           pinnedAt: null,
           archivedAt: null,
           trashedAt: null,
@@ -139,6 +165,8 @@ function minimalManifest(): BackupManifest {
           updatedAt: timestamp,
         },
       ],
+      noteRevisions: [],
+      noteTemplates: [],
       noteTags: [],
       noteLinks: [
         {

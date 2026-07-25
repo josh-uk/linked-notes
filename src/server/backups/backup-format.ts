@@ -52,9 +52,36 @@ const noteSchema = z
     contentSchema: z.number().int().positive(),
     optimisticVersion: z.number().int().positive(),
     folderId: uuidSchema.nullable(),
+    dailyDate: z.string().date().nullable().default(null),
+    sourceType: z.string().min(1).max(50).nullable().default(null),
+    sourceId: z.string().min(1).max(1_000).nullable().default(null),
     pinnedAt: timestampSchema.nullable(),
     archivedAt: timestampSchema.nullable(),
     trashedAt: timestampSchema.nullable(),
+    createdAt: timestampSchema,
+    updatedAt: timestampSchema,
+  })
+  .strict();
+
+const noteRevisionSchema = z
+  .object({
+    id: uuidSchema,
+    noteId: uuidSchema,
+    noteVersion: z.number().int().positive(),
+    title: z.string().max(500),
+    content: editorDocumentSchema,
+    contentText: z.string().max(2_000_000),
+    reason: z.string().min(1).max(50),
+    createdAt: timestampSchema,
+  })
+  .strict();
+
+const noteTemplateSchema = z
+  .object({
+    id: uuidSchema,
+    name: z.string().min(1).max(200),
+    title: z.string().max(500),
+    content: editorDocumentSchema,
     createdAt: timestampSchema,
     updatedAt: timestampSchema,
   })
@@ -124,6 +151,8 @@ export const backupManifestSchema = z
         folders: z.array(folderSchema).max(50_000),
         tags: z.array(tagSchema).max(50_000),
         notes: z.array(noteSchema).max(1_000_000),
+        noteRevisions: z.array(noteRevisionSchema).max(5_000_000).default([]),
+        noteTemplates: z.array(noteTemplateSchema).max(10_000).default([]),
         noteTags: z.array(noteTagSchema).max(5_000_000),
         noteLinks: z.array(noteLinkSchema).max(5_000_000),
         settings: z.array(settingSchema).max(10_000),
@@ -231,6 +260,20 @@ function validateManifestRelations(
     }
   }
   unique(context, entities.notes, ({ id }) => id, "note IDs");
+  unique(context, entities.noteRevisions, ({ id }) => id, "revision IDs");
+  unique(
+    context,
+    entities.noteRevisions,
+    ({ noteId, noteVersion }) => `${noteId}:${noteVersion}`,
+    "note revision versions",
+  );
+  unique(context, entities.noteTemplates, ({ id }) => id, "template IDs");
+  unique(
+    context,
+    entities.noteTemplates,
+    ({ name }) => normalizeName(name),
+    "template names",
+  );
   unique(context, entities.attachments, ({ id }) => id, "attachment IDs");
   unique(
     context,
@@ -295,6 +338,17 @@ function validateManifestRelations(
     }
     if (note.contentSchema > EDITOR_DOCUMENT_SCHEMA_VERSION) {
       issue(context, `Note ${note.id} uses an unsupported editor schema`);
+    }
+  }
+  for (const revision of entities.noteRevisions) {
+    if (!noteIds.has(revision.noteId)) {
+      issue(context, `Revision ${revision.id} references a missing note`);
+    }
+    if (
+      revision.noteVersion >
+      (noteById.get(revision.noteId)?.optimisticVersion ?? 0)
+    ) {
+      issue(context, `Revision ${revision.id} is newer than its note`);
     }
   }
   for (const relation of entities.noteTags) {

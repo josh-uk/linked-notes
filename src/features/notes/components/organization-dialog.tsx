@@ -71,6 +71,8 @@ type RestoreReport = {
     attachmentIdsRemapped: number;
     missingTargetKeysRemapped: number;
     settingsImported: number;
+    revisionsImported: number;
+    templatesImported: number;
   };
   safetyBackup: null | {
     name: string;
@@ -1084,7 +1086,8 @@ export function OrganizationDialog({
                   <span>
                     {restoreReport.summary.notesCreated} notes ·{" "}
                     {restoreReport.summary.attachmentsCreated} attachments ·{" "}
-                    {restoreReport.summary.noteIdsRemapped} note IDs remapped
+                    {restoreReport.summary.revisionsImported} history versions ·{" "}
+                    {restoreReport.summary.templatesImported} templates
                   </span>
                   <span>
                     {formatBytes(restoreReport.archive.compressedBytes)} archive
