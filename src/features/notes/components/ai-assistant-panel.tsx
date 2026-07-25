@@ -6,9 +6,12 @@ import {
   Link2,
   ListTree,
   LoaderCircle,
+  PenLine,
   Plus,
+  Replace,
   ScanSearch,
   Sparkles,
+  TextSelect,
   TriangleAlert,
 } from "lucide-react";
 import { useState } from "react";
@@ -16,11 +19,18 @@ import { useState } from "react";
 import type {
   AiAnalysisResponse,
   AiConnectionSuggestion,
+  AiRewriteMode,
   AiStatusResponse,
   ApiError,
 } from "../types";
 
 type AiAction = AiAnalysisResponse["action"];
+
+export type AiEditorSelection = {
+  from: number;
+  to: number;
+  text: string;
+};
 
 type AiAssistantPanelProps = {
   noteId: string;
@@ -28,6 +38,17 @@ type AiAssistantPanelProps = {
   beforeAnalysis: () => Promise<boolean>;
   onInsertSummary: (bullets: string[]) => void;
   onInsertLink: (suggestion: AiConnectionSuggestion) => void;
+  selection: AiEditorSelection | null;
+  onReplaceSelection: (
+    text: string,
+    mode: AiRewriteMode,
+    selection: AiEditorSelection,
+  ) => void;
+  onInsertAfterSelection: (
+    text: string,
+    mode: AiRewriteMode,
+    selection: AiEditorSelection,
+  ) => void;
   onOpenNote: (noteId: string) => void;
 };
 
@@ -37,6 +58,9 @@ export function AiAssistantPanel({
   beforeAnalysis,
   onInsertSummary,
   onInsertLink,
+  selection,
+  onReplaceSelection,
+  onInsertAfterSelection,
   onOpenNote,
 }: AiAssistantPanelProps) {
   const [status, setStatus] = useState<AiStatusResponse | null>(null);
@@ -44,8 +68,20 @@ export function AiAssistantPanel({
   const [result, setResult] = useState<AiAnalysisResponse | null>(null);
   const [resultRevision, setResultRevision] = useState<number | null>(null);
   const [pendingAction, setPendingAction] = useState<AiAction | null>(null);
+  const [rewriteMode, setRewriteMode] = useState<AiRewriteMode>("clarify");
+  const [tone, setTone] = useState<
+    "professional" | "friendly" | "concise" | "confident"
+  >("professional");
+  const [targetLanguage, setTargetLanguage] = useState("French");
+  const [resultSelection, setResultSelection] =
+    useState<AiEditorSelection | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const stale = Boolean(result && resultRevision !== revision);
+  const stale = Boolean(
+    result &&
+    (resultRevision !== revision ||
+      (result.action === "rewrite-selection" &&
+        selectionSignature(selection) !== selectionSignature(resultSelection))),
+  );
 
   async function loadStatus() {
     if (statusLoading) return;
@@ -82,12 +118,30 @@ export function AiAssistantPanel({
     }
 
     const requestedRevision = revision;
+    const requestedSelection =
+      action === "rewrite-selection" ? selection : null;
+    if (action === "rewrite-selection" && !requestedSelection) {
+      setError("Select some note text before requesting a writing preview.");
+      return;
+    }
     setPendingAction(action);
     try {
       const response = await fetch(`/api/notes/${noteId}/ai`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action }),
+        body: JSON.stringify(
+          action === "rewrite-selection"
+            ? {
+                action,
+                mode: rewriteMode,
+                selectedText: requestedSelection?.text,
+                ...(rewriteMode === "tone" ? { tone } : {}),
+                ...(rewriteMode === "translate"
+                  ? { targetLanguage: targetLanguage.trim() }
+                  : {}),
+              }
+            : { action },
+        ),
       });
       const payload = (await response.json()) as AiAnalysisResponse | ApiError;
       if (!response.ok || "error" in payload) {
@@ -99,6 +153,7 @@ export function AiAssistantPanel({
       }
       setResult(payload);
       setResultRevision(requestedRevision);
+      setResultSelection(requestedSelection);
     } catch (analysisError) {
       setError(
         analysisError instanceof Error
@@ -206,10 +261,110 @@ export function AiAssistantPanel({
           </button>
         </div>
 
+        <section
+          className="ai-writing-tools"
+          aria-labelledby="ai-writing-tools-title"
+        >
+          <header>
+            <div>
+              <PenLine size={17} aria-hidden="true" />
+              <span>
+                <strong id="ai-writing-tools-title">Rewrite selection</strong>
+                <small>
+                  Preview a local rewrite, then choose whether to insert it.
+                </small>
+              </span>
+            </div>
+            <span data-selected={selection ? "true" : undefined}>
+              <TextSelect size={14} aria-hidden="true" />
+              {selection
+                ? `${selection.text.length} characters selected`
+                : "Select note text"}
+            </span>
+          </header>
+          <div className="ai-writing-controls">
+            <label>
+              Writing task
+              <select
+                aria-label="Selection writing task"
+                value={rewriteMode}
+                onChange={(event) =>
+                  setRewriteMode(event.target.value as AiRewriteMode)
+                }
+              >
+                <option value="shorten">Shorten</option>
+                <option value="clarify">Rewrite clearly</option>
+                <option value="proofread">Fix spelling and grammar</option>
+                <option value="bullets">Turn into bullets</option>
+                <option value="expand">Expand outline</option>
+                <option value="tone">Change tone</option>
+                <option value="translate">Translate</option>
+              </select>
+            </label>
+            {rewriteMode === "tone" ? (
+              <label>
+                Tone
+                <select
+                  aria-label="Target tone"
+                  value={tone}
+                  onChange={(event) =>
+                    setTone(
+                      event.target.value as
+                        "professional" | "friendly" | "concise" | "confident",
+                    )
+                  }
+                >
+                  <option value="professional">Professional</option>
+                  <option value="friendly">Friendly</option>
+                  <option value="concise">Concise</option>
+                  <option value="confident">Confident</option>
+                </select>
+              </label>
+            ) : null}
+            {rewriteMode === "translate" ? (
+              <label>
+                Language
+                <input
+                  aria-label="Target language"
+                  maxLength={50}
+                  value={targetLanguage}
+                  onChange={(event) => setTargetLanguage(event.target.value)}
+                />
+              </label>
+            ) : null}
+            <button
+              type="button"
+              disabled={
+                !ready ||
+                !selection ||
+                Boolean(pendingAction) ||
+                (rewriteMode === "translate" &&
+                  targetLanguage.trim().length < 2)
+              }
+              onClick={() => void runAnalysis("rewrite-selection")}
+            >
+              {pendingAction === "rewrite-selection" ? (
+                <LoaderCircle className="spin" size={16} aria-hidden="true" />
+              ) : (
+                <Sparkles size={16} aria-hidden="true" />
+              )}
+              Preview rewrite
+            </button>
+          </div>
+          {selection ? (
+            <blockquote>{compactSelection(selection.text)}</blockquote>
+          ) : (
+            <p>
+              Highlight text in the editor first. The rest of the note is not
+              sent for this action.
+            </p>
+          )}
+        </section>
+
         {stale ? (
           <p className="ai-stale-state" role="status">
-            This result is from an earlier version of the note. Run the analysis
-            again before inserting it.
+            This result is from an earlier note version or text selection. Run
+            the analysis again before inserting it.
           </p>
         ) : null}
 
@@ -285,9 +440,75 @@ export function AiAssistantPanel({
             ) : null}
           </section>
         ) : null}
+
+        {result?.action === "rewrite-selection" && resultSelection ? (
+          <section className="ai-result" aria-labelledby="ai-rewrite-title">
+            <header>
+              <div>
+                <PenLine size={17} aria-hidden="true" />
+                <h3 id="ai-rewrite-title">Writing preview</h3>
+              </div>
+              <small>{rewriteLabel(result.mode)}</small>
+            </header>
+            <pre className="ai-writing-preview">{result.text}</pre>
+            <div className="ai-writing-result-actions">
+              <button
+                type="button"
+                disabled={stale}
+                onClick={() =>
+                  onReplaceSelection(result.text, result.mode, resultSelection)
+                }
+              >
+                <Replace size={14} aria-hidden="true" />
+                Replace selection
+              </button>
+              <button
+                type="button"
+                disabled={stale}
+                onClick={() =>
+                  onInsertAfterSelection(
+                    result.text,
+                    result.mode,
+                    resultSelection,
+                  )
+                }
+              >
+                <Plus size={14} aria-hidden="true" />
+                Insert after
+              </button>
+            </div>
+            {result.truncated ? (
+              <p className="ai-result-note">
+                The selected text or generated preview reached the local safety
+                limit.
+              </p>
+            ) : null}
+          </section>
+        ) : null}
       </div>
     </details>
   );
+}
+
+function selectionSignature(selection: AiEditorSelection | null): string {
+  return selection
+    ? `${selection.from}:${selection.to}:${selection.text}`
+    : "none";
+}
+
+function compactSelection(value: string): string {
+  const compact = value.replaceAll(/\s+/g, " ").trim();
+  return compact.length > 240 ? `${compact.slice(0, 237)}…` : compact;
+}
+
+function rewriteLabel(mode: AiRewriteMode): string {
+  if (mode === "shorten") return "Shortened";
+  if (mode === "clarify") return "Clear rewrite";
+  if (mode === "proofread") return "Proofread";
+  if (mode === "bullets") return "Bullet list";
+  if (mode === "expand") return "Expanded";
+  if (mode === "tone") return "Tone changed";
+  return "Translated";
 }
 
 function AiStatus({

@@ -6,9 +6,11 @@ import {
   ChevronLeft,
   LoaderCircle,
   Menu,
+  MessageCircleQuestion,
   Pin,
   Plus,
   Search,
+  Sparkles,
   Tag,
   Trash2,
   X,
@@ -22,6 +24,7 @@ import type {
   NoteSummary,
   NotesView,
   OrganizationResponse,
+  SearchMode,
   SortDirection,
 } from "../types";
 
@@ -34,6 +37,8 @@ type NoteListProps = {
   currentFolderId: string | null;
   currentTagId: string | null;
   query: string;
+  searchMode: SearchMode;
+  semanticQuery: string;
   sort: NoteSort;
   direction: SortDirection;
   attachments: AttachmentFilter;
@@ -48,6 +53,9 @@ type NoteListProps = {
   onSelect: (id: string) => void;
   onCreate: () => void;
   onQueryChange: (value: string) => void;
+  onSearchModeChange: (mode: SearchMode) => void;
+  onSubmitSemantic: () => void;
+  onOpenAsk: () => void;
   onSortChange: (sort: NoteSort) => void;
   onDirectionChange: (direction: SortDirection) => void;
   onAttachmentsChange: (filter: AttachmentFilter) => void;
@@ -75,6 +83,8 @@ export function NoteList({
   currentFolderId,
   currentTagId,
   query,
+  searchMode,
+  semanticQuery,
   sort,
   direction,
   attachments,
@@ -89,6 +99,9 @@ export function NoteList({
   onSelect,
   onCreate,
   onQueryChange,
+  onSearchModeChange,
+  onSubmitSemantic,
+  onOpenAsk,
   onSortChange,
   onDirectionChange,
   onAttachmentsChange,
@@ -178,19 +191,49 @@ export function NoteList({
       </header>
 
       <div className="search-control">
-        <Search size={16} aria-hidden="true" />
+        {searchMode === "semantic" ? (
+          <Sparkles size={16} aria-hidden="true" />
+        ) : (
+          <Search size={16} aria-hidden="true" />
+        )}
         <input
           type="search"
           aria-label="Search note titles and bodies"
-          placeholder="Search notes"
+          placeholder={
+            searchMode === "semantic"
+              ? "Describe what you remember"
+              : "Search notes"
+          }
           value={query}
           onChange={(event) => onQueryChange(event.target.value)}
           onKeyDown={(event) => {
             if (event.key === "Escape" && query) onQueryChange("");
+            if (
+              event.key === "Enter" &&
+              searchMode === "semantic" &&
+              query.trim()
+            ) {
+              event.preventDefault();
+              onSubmitSemantic();
+            }
           }}
         />
         {searching ? (
           <LoaderCircle className="spin" size={15} aria-label="Searching" />
+        ) : searchMode === "semantic" && query.trim() ? (
+          <button
+            type="button"
+            className="semantic-search-submit"
+            aria-label="Run meaning search"
+            title="Run meaning search"
+            onClick={onSubmitSemantic}
+          >
+            {loading && semanticQuery === query.trim() ? (
+              <LoaderCircle className="spin" size={14} aria-hidden="true" />
+            ) : (
+              <Sparkles size={14} aria-hidden="true" />
+            )}
+          </button>
         ) : query ? (
           <button
             type="button"
@@ -200,6 +243,37 @@ export function NoteList({
             <X size={14} aria-hidden="true" />
           </button>
         ) : null}
+      </div>
+
+      <div className="ai-list-tools" aria-label="Search and workspace AI">
+        <div role="group" aria-label="Search mode">
+          <button
+            type="button"
+            data-active={searchMode === "keyword" || undefined}
+            onClick={() => onSearchModeChange("keyword")}
+          >
+            <Search size={13} aria-hidden="true" />
+            Keyword
+          </button>
+          <button
+            type="button"
+            data-active={searchMode === "semantic" || undefined}
+            disabled={view === "trash"}
+            title={
+              view === "trash"
+                ? "Meaning search excludes trashed notes"
+                : "Search by meaning with local embeddings"
+            }
+            onClick={() => onSearchModeChange("semantic")}
+          >
+            <Sparkles size={13} aria-hidden="true" />
+            Meaning
+          </button>
+        </div>
+        <button type="button" onClick={onOpenAsk}>
+          <MessageCircleQuestion size={13} aria-hidden="true" />
+          Ask notes
+        </button>
       </div>
 
       <div className="list-controls" aria-label="Note list controls">
@@ -374,7 +448,11 @@ export function NoteList({
         {loading ? (
           <div className="list-state" role="status">
             <LoaderCircle className="spin" size={20} aria-hidden="true" />
-            {query ? "Searching notes…" : "Loading notes…"}
+            {searchMode === "semantic" && semanticQuery
+              ? "Searching notes by meaning…"
+              : query
+                ? "Searching notes…"
+                : "Loading notes…"}
           </div>
         ) : null}
 
@@ -404,7 +482,9 @@ export function NoteList({
             </strong>
             <span>
               {query
-                ? "Try fewer words or clear a filter."
+                ? searchMode === "semantic"
+                  ? "Try describing the idea another way or clear a filter."
+                  : "Try fewer words or clear a filter."
                 : view === "trash"
                   ? "Notes moved here can be restored or deliberately deleted."
                   : "Create a note and start connecting ideas."}
@@ -490,6 +570,11 @@ function NoteListContent({ note }: { note: NoteSummary }) {
         </strong>
         {note.pinnedAt ? (
           <Pin size={13} fill="currentColor" aria-label="Pinned" />
+        ) : null}
+        {note.semanticScore !== undefined ? (
+          <small className="semantic-score">
+            {Math.round(note.semanticScore * 100)}% match
+          </small>
         ) : null}
       </span>
       <span className="note-list-excerpt">

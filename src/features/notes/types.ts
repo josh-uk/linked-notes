@@ -22,6 +22,7 @@ export type NoteSummary = {
   titleHighlight?: string;
   highlight?: string;
   rank?: number;
+  semanticScore?: number;
   optimisticVersion: number;
   folder: NoteFolder | null;
   tags: NoteTag[];
@@ -119,7 +120,59 @@ export type AiConnectionsResponse = {
   truncated: boolean;
 };
 
-export type AiAnalysisResponse = AiSummaryResponse | AiConnectionsResponse;
+export type AiRewriteMode =
+  | "shorten"
+  | "clarify"
+  | "proofread"
+  | "bullets"
+  | "expand"
+  | "tone"
+  | "translate";
+
+export type AiRewriteResponse = {
+  action: "rewrite-selection";
+  mode: AiRewriteMode;
+  noteVersion: number;
+  text: string;
+  truncated: boolean;
+};
+
+export type AiAnalysisResponse =
+  AiSummaryResponse | AiConnectionsResponse | AiRewriteResponse;
+
+export type AiCitation = {
+  noteId: string;
+  title: string;
+  state: "active" | "archived";
+  excerpt: string;
+  reason: string;
+};
+
+export type AiAskResponse = {
+  answer: string | null;
+  citations: AiCitation[];
+  scannedNotes: number;
+  scanLimitReached: boolean;
+  truncated: boolean;
+};
+
+export type AiFolderSuggestion = {
+  noteId: string;
+  noteTitle: string;
+  expectedVersion: number;
+  folderId: string;
+  folderName: string;
+  confidence: number;
+  reason: string;
+};
+
+export type AiFolderSuggestionsResponse = {
+  suggestions: AiFolderSuggestion[];
+  unfiledNotes: number;
+  scannedNotes: number;
+  scannedFolders: number;
+  scanLimitReached: boolean;
+};
 
 export type NoteFolder = {
   id: string;
@@ -155,6 +208,7 @@ export type OrganizationResponse = {
 };
 
 export type NotesView = "all" | "pinned" | "archive" | "trash";
+export type SearchMode = "keyword" | "semantic";
 export type NoteSort = "updated" | "created" | "title" | "relevance";
 export type SortDirection = "asc" | "desc";
 export type AttachmentFilter = "any" | "with" | "without";

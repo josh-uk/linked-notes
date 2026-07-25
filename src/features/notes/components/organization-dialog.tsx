@@ -5,9 +5,11 @@ import {
   FolderClosed,
   HardDrive,
   Hash,
+  LoaderCircle,
   Pencil,
   Plus,
   Settings,
+  Sparkles,
   Trash2,
   Upload,
   X,
@@ -15,6 +17,8 @@ import {
 import { FormEvent, useEffect, useRef, useState } from "react";
 
 import type {
+  AiFolderSuggestion,
+  AiFolderSuggestionsResponse,
   ApiError,
   FolderSummary,
   OrganizationResponse,
@@ -119,6 +123,11 @@ export function OrganizationDialog({
   const [restoreReport, setRestoreReport] = useState<RestoreReport | null>(
     null,
   );
+  const [folderSuggestions, setFolderSuggestions] =
+    useState<AiFolderSuggestionsResponse | null>(null);
+  const [selectedFolderSuggestionIds, setSelectedFolderSuggestionIds] =
+    useState<string[]>([]);
+  const [folderAiPending, setFolderAiPending] = useState(false);
 
   useEffect(() => {
     const dialog = dialogRef.current;
@@ -165,6 +174,8 @@ export function OrganizationDialog({
         );
       }
       await onChanged();
+      setFolderSuggestions(null);
+      setSelectedFolderSuggestionIds([]);
       setMessage("Workspace organization updated.");
       return true;
     } catch (requestError) {
@@ -228,6 +239,127 @@ export function OrganizationDialog({
       method: "PATCH",
       body: JSON.stringify({ days }),
     });
+  }
+
+  async function suggestFolders() {
+    setFolderAiPending(true);
+    setError(null);
+    setMessage(null);
+    try {
+      const response = await fetch("/api/ai/folders/suggestions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+      const payload = (await response.json()) as
+        AiFolderSuggestionsResponse | ApiError;
+      if (!response.ok || "error" in payload) {
+        throw new Error(
+          "error" in payload
+            ? payload.error.message
+            : "Folder suggestions could not be generated",
+        );
+      }
+      setFolderSuggestions(payload);
+      setSelectedFolderSuggestionIds(
+        payload.suggestions
+          .filter(({ confidence }) => confidence >= 0.45)
+          .map(({ noteId }) => noteId),
+      );
+    } catch (suggestionError) {
+      setError(
+        suggestionError instanceof Error
+          ? suggestionError.message
+          : "Folder suggestions could not be generated",
+      );
+    } finally {
+      setFolderAiPending(false);
+    }
+  }
+
+  async function applyFolderSuggestions() {
+    if (!folderSuggestions || selectedFolderSuggestionIds.length === 0) return;
+    setFolderAiPending(true);
+    setError(null);
+    setMessage(null);
+    try {
+      const selected = folderSuggestions.suggestions.filter(({ noteId }) =>
+        selectedFolderSuggestionIds.includes(noteId),
+      );
+      const byFolder = new Map<string, AiFolderSuggestion[]>();
+      for (const suggestion of selected) {
+        byFolder.set(suggestion.folderId, [
+          ...(byFolder.get(suggestion.folderId) ?? []),
+          suggestion,
+        ]);
+      }
+      for (const [folderId, suggestions] of byFolder) {
+        for (let index = 0; index < suggestions.length; index += 100) {
+          const batch = suggestions.slice(index, index + 100);
+          const response = await fetch("/api/notes/bulk", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              action: "move",
+              folderId,
+              notes: batch.map(({ noteId, expectedVersion }) => ({
+                id: noteId,
+                expectedVersion,
+              })),
+            }),
+          });
+          const payload = (await response.json()) as unknown | ApiError;
+          if (
+            !response.ok ||
+            (payload && typeof payload === "object" && "error" in payload)
+          ) {
+            throw new Error(
+              payload && typeof payload === "object" && "error" in payload
+                ? (payload as ApiError).error.message
+                : "The selected folder moves could not be applied",
+            );
+          }
+        }
+      }
+      await onChanged();
+      setMessage(
+        `${selected.length} note${selected.length === 1 ? "" : "s"} moved into reviewed folders.`,
+      );
+      setFolderSuggestions(null);
+      setSelectedFolderSuggestionIds([]);
+    } catch (applyError) {
+      setError(
+        applyError instanceof Error
+          ? applyError.message
+          : "The selected folder moves could not be applied",
+      );
+    } finally {
+      setFolderAiPending(false);
+    }
+  }
+
+  function changeSuggestedFolder(
+    suggestion: AiFolderSuggestion,
+    folderId: string,
+  ) {
+    const folder = organization?.folders.find(({ id }) => id === folderId);
+    if (!folder) return;
+    setFolderSuggestions((current) =>
+      current
+        ? {
+            ...current,
+            suggestions: current.suggestions.map((item) =>
+              item.noteId === suggestion.noteId
+                ? {
+                    ...item,
+                    folderId: folder.id,
+                    folderName: folder.name,
+                    reason: "Folder changed during review.",
+                  }
+                : item,
+            ),
+          }
+        : current,
+    );
   }
 
   async function checkAttachmentStorage(repairOrphans = false) {
@@ -325,7 +457,7 @@ export function OrganizationDialog({
       onKeyDown={trapDialogFocus}
       onCancel={(event) => {
         event.preventDefault();
-        if (!pending) dialogRef.current?.close();
+        if (!pending && !folderAiPending) dialogRef.current?.close();
       }}
       onClose={() => {
         const previous = previousFocusRef.current;
@@ -344,7 +476,7 @@ export function OrganizationDialog({
           ref={closeButtonRef}
           type="button"
           className="icon-button"
-          disabled={pending}
+          disabled={pending || folderAiPending}
           aria-label="Close organization settings"
           onClick={() => dialogRef.current?.close()}
         >
@@ -484,6 +616,162 @@ export function OrganizationDialog({
                 Maximum depth: {organization?.maxFolderDepth ?? 6}. Cycles and
                 invalid parents are rejected.
               </p>
+              <section
+                className="ai-folder-cleanup"
+                aria-labelledby="ai-folder-cleanup-title"
+              >
+                <header>
+                  <div>
+                    <Sparkles size={17} aria-hidden="true" />
+                    <span>
+                      <strong id="ai-folder-cleanup-title">
+                        Clean up unfiled notes
+                      </strong>
+                      <small>
+                        Local embeddings suggest an existing folder. You review
+                        every move.
+                      </small>
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={
+                      folderAiPending || !(organization?.folders.length ?? 0)
+                    }
+                    onClick={() => void suggestFolders()}
+                  >
+                    {folderAiPending && !folderSuggestions ? (
+                      <LoaderCircle
+                        className="spin"
+                        size={15}
+                        aria-hidden="true"
+                      />
+                    ) : (
+                      <Sparkles size={15} aria-hidden="true" />
+                    )}
+                    {folderSuggestions ? "Scan again" : "Suggest folders"}
+                  </button>
+                </header>
+
+                {folderSuggestions ? (
+                  <>
+                    <div className="ai-folder-summary" role="status">
+                      <span>
+                        {folderSuggestions.suggestions.length} suggestion
+                        {folderSuggestions.suggestions.length === 1
+                          ? ""
+                          : "s"}{" "}
+                        from {folderSuggestions.scannedNotes} unfiled note
+                        {folderSuggestions.scannedNotes === 1 ? "" : "s"}
+                      </span>
+                      {folderSuggestions.scanLimitReached ? (
+                        <small>
+                          Safety limit reached; the most recently updated notes
+                          and folders were scanned.
+                        </small>
+                      ) : null}
+                    </div>
+                    {folderSuggestions.suggestions.length > 0 ? (
+                      <>
+                        <div className="ai-folder-select-all">
+                          <label>
+                            <input
+                              type="checkbox"
+                              checked={
+                                selectedFolderSuggestionIds.length ===
+                                folderSuggestions.suggestions.length
+                              }
+                              onChange={(event) =>
+                                setSelectedFolderSuggestionIds(
+                                  event.target.checked
+                                    ? folderSuggestions.suggestions.map(
+                                        ({ noteId }) => noteId,
+                                      )
+                                    : [],
+                                )
+                              }
+                            />
+                            Select all
+                          </label>
+                          <small>Suggestions below 45% start unselected.</small>
+                        </div>
+                        <div className="ai-folder-suggestions">
+                          {folderSuggestions.suggestions.map((suggestion) => (
+                            <article key={suggestion.noteId}>
+                              <input
+                                type="checkbox"
+                                aria-label={`Move ${suggestion.noteTitle}`}
+                                checked={selectedFolderSuggestionIds.includes(
+                                  suggestion.noteId,
+                                )}
+                                onChange={(event) =>
+                                  setSelectedFolderSuggestionIds((current) =>
+                                    event.target.checked
+                                      ? [...current, suggestion.noteId]
+                                      : current.filter(
+                                          (id) => id !== suggestion.noteId,
+                                        ),
+                                  )
+                                }
+                              />
+                              <div>
+                                <strong>{suggestion.noteTitle}</strong>
+                                <small>{suggestion.reason}</small>
+                              </div>
+                              <label>
+                                <span className="sr-only">
+                                  Suggested folder for {suggestion.noteTitle}
+                                </span>
+                                <select
+                                  value={suggestion.folderId}
+                                  onChange={(event) =>
+                                    changeSuggestedFolder(
+                                      suggestion,
+                                      event.target.value,
+                                    )
+                                  }
+                                >
+                                  {organization?.folders.map((folder) => (
+                                    <option key={folder.id} value={folder.id}>
+                                      {folder.name}
+                                    </option>
+                                  ))}
+                                </select>
+                              </label>
+                              <span>
+                                {Math.round(suggestion.confidence * 100)}%
+                              </span>
+                            </article>
+                          ))}
+                        </div>
+                        <div className="dialog-actions">
+                          <button
+                            type="button"
+                            disabled={
+                              folderAiPending ||
+                              selectedFolderSuggestionIds.length === 0
+                            }
+                            onClick={() => void applyFolderSuggestions()}
+                          >
+                            {folderAiPending ? (
+                              <LoaderCircle
+                                className="spin"
+                                size={15}
+                                aria-hidden="true"
+                              />
+                            ) : null}
+                            Apply {selectedFolderSuggestionIds.length} reviewed
+                          </button>
+                        </div>
+                      </>
+                    ) : (
+                      <p className="ai-empty-result">
+                        No non-empty unfiled notes need a suggestion.
+                      </p>
+                    )}
+                  </>
+                ) : null}
+              </section>
               <ul className="organization-list">
                 {organization?.folders.map((folder) => (
                   <li key={folder.id}>

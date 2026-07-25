@@ -71,6 +71,15 @@ unauthenticated Ollama API to the LAN. Long first requests can include model
 load time; increase `AI_REQUEST_TIMEOUT_MS` up to 300000 if required. App logs
 contain only error classes and never the note prompt or model response.
 
+Meaning search, Ask notes, folder cleanup, and selection writing are
+deliberately click-to-run. If Meaning mode shows older results after changing
+the query, press Enter or choose the sparkle button to submit it. Ask notes can
+return no answer when its shortlisted notes do not provide direct evidence.
+Folder cleanup requires at least one existing folder; matches below 45% begin
+unselected and can still be corrected manually. A writing preview becomes
+stale when the note or selection changes, so select the current text and run it
+again.
+
 ## Backup or restore fails
 
 Check free attachment-volume space and configured archive/expanded/entry limits.

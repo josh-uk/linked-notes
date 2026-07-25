@@ -1,6 +1,6 @@
 "use client";
 
-import { EditorContent, useEditor } from "@tiptap/react";
+import { EditorContent, type Editor, useEditor } from "@tiptap/react";
 import {
   AlertTriangle,
   Archive,
@@ -35,7 +35,9 @@ import { createEditorExtensions } from "../editor-extensions";
 import { sanitizePastedHtml } from "../paste-sanitizer";
 import type {
   AiConnectionSuggestion,
+  AiRewriteMode,
   ApiError,
+  EditorNode,
   EditorDocument,
   NoteDetail,
   NoteLifecycleAction,
@@ -43,7 +45,7 @@ import type {
 } from "../types";
 import { EditorToolbar } from "./editor-toolbar";
 import { BacklinksPanel } from "./backlinks-panel";
-import { AiAssistantPanel } from "./ai-assistant-panel";
+import { AiAssistantPanel, type AiEditorSelection } from "./ai-assistant-panel";
 import {
   AttachmentPanel,
   type AttachmentPanelHandle,
@@ -94,6 +96,9 @@ export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
     const [confirmPermanentDelete, setConfirmPermanentDelete] = useState(false);
     const [dragActive, setDragActive] = useState(false);
     const [aiRevision, setAiRevision] = useState(0);
+    const [aiSelection, setAiSelection] = useState<AiEditorSelection | null>(
+      null,
+    );
 
     const titleRef = useRef(note.title);
     const contentRef = useRef(note.content);
@@ -149,7 +154,10 @@ export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
       onUpdate: ({ editor: currentEditor }) => {
         const content = currentEditor.getJSON() as EditorDocument;
         markDirty(titleRef.current, content);
+        setAiSelection(readAiSelection(currentEditor));
       },
+      onSelectionUpdate: ({ editor: currentEditor }) =>
+        setAiSelection(readAiSelection(currentEditor)),
       onBlur: () => void flushRef.current(),
     });
 
@@ -260,6 +268,7 @@ export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
       setSaveState("saved");
       setSaveMessage(null);
       setAiRevision(0);
+      setAiSelection(null);
       editor.commands.setContent(note.content, { emitUpdate: false });
     }, [editor, note.content, note.id, note.optimisticVersion, note.title]);
 
@@ -529,6 +538,39 @@ export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
             },
           },
           { type: "text", text: " " },
+        ])
+        .run();
+    }
+
+    function replaceAiSelection(
+      text: string,
+      mode: AiRewriteMode,
+      selection: AiEditorSelection,
+    ) {
+      if (!editor || !selectionStillMatches(editor, selection)) return;
+      editor
+        .chain()
+        .focus()
+        .insertContentAt(
+          { from: selection.from, to: selection.to },
+          aiRewriteContent(text, mode),
+        )
+        .run();
+    }
+
+    function insertAfterAiSelection(
+      text: string,
+      mode: AiRewriteMode,
+      selection: AiEditorSelection,
+    ) {
+      if (!editor || !selectionStillMatches(editor, selection)) return;
+      editor
+        .chain()
+        .focus()
+        .insertContentAt(selection.to, [
+          { type: "hardBreak" },
+          { type: "hardBreak" },
+          ...aiRewriteContent(text, mode),
         ])
         .run();
     }
@@ -833,6 +875,9 @@ export const NoteEditor = forwardRef<NoteEditorHandle, NoteEditorProps>(
             beforeAnalysis={flush}
             onInsertSummary={insertAiSummary}
             onInsertLink={insertAiLink}
+            selection={aiSelection}
+            onReplaceSelection={replaceAiSelection}
+            onInsertAfterSelection={insertAfterAiSelection}
             onOpenNote={onOpenLinkedNote}
           />
           <BacklinksPanel noteId={note.id} onOpenNote={onOpenLinkedNote} />
@@ -918,4 +963,55 @@ function clearPersistedDraft(noteId: string) {
   } catch {
     // No action is required when session storage is unavailable.
   }
+}
+
+function readAiSelection(editor: Editor): AiEditorSelection | null {
+  const { from, to } = editor.state.selection;
+  if (from === to) return null;
+  const text = editor.state.doc.textBetween(from, to, "\n", "\n").trim();
+  return text ? { from, to, text } : null;
+}
+
+function selectionStillMatches(
+  editor: Editor,
+  selection: AiEditorSelection,
+): boolean {
+  return (
+    editor.state.doc
+      .textBetween(selection.from, selection.to, "\n", "\n")
+      .trim() === selection.text
+  );
+}
+
+export function aiRewriteContent(
+  text: string,
+  mode: AiRewriteMode,
+): EditorNode[] {
+  if (mode === "bullets") {
+    const bullets = text
+      .split(/\r?\n/)
+      .map((line) => line.replace(/^\s*(?:[-*•]|\d+[.)])\s*/, "").trim())
+      .filter(Boolean);
+    return [
+      {
+        type: "bulletList",
+        content: bullets.map((bullet) => ({
+          type: "listItem",
+          content: [
+            {
+              type: "paragraph",
+              content: [{ type: "text", text: bullet }],
+            },
+          ],
+        })),
+      },
+    ];
+  }
+
+  return text
+    .split(/\r?\n/)
+    .flatMap<EditorNode>((line, index) => [
+      ...(index > 0 ? [{ type: "hardBreak" } satisfies EditorNode] : []),
+      ...(line ? [{ type: "text", text: line } satisfies EditorNode] : []),
+    ]);
 }

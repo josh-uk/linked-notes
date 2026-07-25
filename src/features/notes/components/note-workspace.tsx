@@ -14,6 +14,7 @@ import type {
   NotesPage,
   NotesView,
   OrganizationResponse,
+  SearchMode,
   SearchPage,
   SortDirection,
 } from "../types";
@@ -21,6 +22,7 @@ import { AppSidebar } from "./app-sidebar";
 import { NoteEditor, type NoteEditorHandle } from "./note-editor";
 import { NoteList } from "./note-list";
 import { OrganizationDialog } from "./organization-dialog";
+import { WorkspaceAiDialog } from "./workspace-ai-dialog";
 
 type MobileView = "sidebar" | "list" | "editor";
 type OrganizationSection = "folders" | "tags" | "settings";
@@ -38,6 +40,8 @@ export function NoteWorkspace() {
   const [currentTagId, setCurrentTagId] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
+  const [searchMode, setSearchMode] = useState<SearchMode>("keyword");
+  const [semanticQuery, setSemanticQuery] = useState("");
   const [sort, setSort] = useState<NoteSort>("updated");
   const [direction, setDirection] = useState<SortDirection>("desc");
   const [attachments, setAttachments] = useState<AttachmentFilter>("any");
@@ -47,6 +51,7 @@ export function NoteWorkspace() {
   const [listError, setListError] = useState<string | null>(null);
   const [editorLoading, setEditorLoading] = useState(false);
   const [organizationOpen, setOrganizationOpen] = useState(false);
+  const [workspaceAiOpen, setWorkspaceAiOpen] = useState(false);
   const [organizationSection, setOrganizationSection] =
     useState<OrganizationSection>("folders");
   const editorRef = useRef<NoteEditorHandle>(null);
@@ -54,9 +59,10 @@ export function NoteWorkspace() {
   const selectedNoteRef = useRef<NoteDetail | null>(null);
 
   useEffect(() => {
+    if (searchMode !== "keyword") return;
     const timeout = setTimeout(() => setDebouncedQuery(query.trim()), 180);
     return () => clearTimeout(timeout);
-  }, [query]);
+  }, [query, searchMode]);
 
   const fetchOrganization = useCallback(async () => {
     try {
@@ -120,12 +126,14 @@ export function NoteWorkspace() {
       else setLoading(true);
       setListError(null);
       try {
+        const activeQuery =
+          searchMode === "semantic" ? semanticQuery : debouncedQuery;
         const search = new URLSearchParams({
           view,
           limit: "40",
           attachments,
           sort:
-            debouncedQuery && sort === "relevance"
+            activeQuery && sort === "relevance"
               ? "relevance"
               : sort === "relevance"
                 ? "updated"
@@ -135,14 +143,39 @@ export function NoteWorkspace() {
         if (currentFolderId) search.set("folderId", currentFolderId);
         if (currentTagId) search.set("tagIds", currentTagId);
         if (cursor) {
-          search.set(debouncedQuery ? "offset" : "cursor", cursor);
+          search.set(activeQuery ? "offset" : "cursor", cursor);
         }
-        if (debouncedQuery) search.set("q", debouncedQuery);
-        const endpoint = debouncedQuery ? "/api/notes/search" : "/api/notes";
-        const response = await fetch(`${endpoint}?${search}`, {
-          cache: "no-store",
-          signal: request.signal,
-        });
+        if (activeQuery) search.set("q", activeQuery);
+        const semanticSearch =
+          searchMode === "semantic" && Boolean(semanticQuery);
+        const endpoint = semanticSearch
+          ? "/api/ai/search"
+          : activeQuery
+            ? "/api/notes/search"
+            : "/api/notes";
+        const response = await fetch(
+          semanticSearch ? endpoint : `${endpoint}?${search}`,
+          semanticSearch
+            ? {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  q: semanticQuery,
+                  view,
+                  limit: 40,
+                  offset: cursor ? Number(cursor) : 0,
+                  attachments,
+                  ...(currentFolderId ? { folderId: currentFolderId } : {}),
+                  ...(currentTagId ? { tagIds: [currentTagId] } : {}),
+                }),
+                cache: "no-store",
+                signal: request.signal,
+              }
+            : {
+                cache: "no-store",
+                signal: request.signal,
+              },
+        );
         const payload = (await response.json()) as
           NotesPage | SearchPage | ApiError;
         if (!response.ok || "error" in payload) {
@@ -181,6 +214,8 @@ export function NoteWorkspace() {
       debouncedQuery,
       direction,
       fetchNote,
+      searchMode,
+      semanticQuery,
       sort,
       view,
     ],
@@ -287,6 +322,10 @@ export function NoteWorkspace() {
     if (!flushed) return;
     setCurrentFolderId(null);
     setCurrentTagId(null);
+    if (nextView === "trash" && searchMode === "semantic") {
+      setSearchMode("keyword");
+      setSemanticQuery("");
+    }
     selectedNoteRef.current = null;
     setSelectedNote(null);
     setView(nextView);
@@ -403,12 +442,14 @@ export function NoteWorkspace() {
         currentFolderId={currentFolderId}
         currentTagId={currentTagId}
         query={query}
+        searchMode={searchMode}
+        semanticQuery={semanticQuery}
         sort={sort}
         direction={direction}
         attachments={attachments}
         activeNoteId={selectedNote?.id ?? null}
         loading={loading}
-        searching={query.trim() !== debouncedQuery}
+        searching={searchMode === "keyword" && query.trim() !== debouncedQuery}
         loadingMore={loadingMore}
         createDisabled={loading || editorLoading || creating}
         nextCursor={nextCursor}
@@ -420,7 +461,28 @@ export function NoteWorkspace() {
           setQuery(value);
           if (value.trim() && sort !== "relevance") setSort("relevance");
           if (!value.trim() && sort === "relevance") setSort("updated");
+          if (!value.trim()) setSemanticQuery("");
         }}
+        onSearchModeChange={(mode) => {
+          if (mode === searchMode) return;
+          setSearchMode(mode);
+          setNextCursor(null);
+          if (mode === "keyword") {
+            setSemanticQuery("");
+            setDebouncedQuery(query.trim());
+          } else {
+            setDebouncedQuery("");
+            setSemanticQuery("");
+            setSort("relevance");
+          }
+        }}
+        onSubmitSemantic={() => {
+          const submitted = query.trim();
+          if (!submitted) return;
+          if (submitted === semanticQuery) void fetchPage();
+          else setSemanticQuery(submitted);
+        }}
+        onOpenAsk={() => setWorkspaceAiOpen(true)}
         onSortChange={setSort}
         onDirectionChange={setDirection}
         onAttachmentsChange={setAttachments}
@@ -504,6 +566,11 @@ export function NoteWorkspace() {
           if (removedCurrentTag) setCurrentTagId(null);
           if (!removedCurrentFolder && !removedCurrentTag) await fetchPage();
         }}
+      />
+      <WorkspaceAiDialog
+        open={workspaceAiOpen}
+        onClose={() => setWorkspaceAiOpen(false)}
+        onOpenNote={(noteId) => void selectNote(noteId)}
       />
     </main>
   );

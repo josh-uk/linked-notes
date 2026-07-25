@@ -31,15 +31,16 @@ The Compose ports bind to loopback. The optional Ollama integration adds one
 configured host HTTP destination to the server process; it is disabled by
 default and is never called from browser code or without a user action.
 
-Folder and tag names, search strings, filters, sort choices, bulk selections, and
-retention settings are strictly bounded at the route boundary. Full-text search
-uses Prisma SQL values rather than string interpolation, and highlighted database
-fragments are rendered through a marker parser rather than `innerHTML`. Bulk
-mutations run in one transaction and reject stale versions. Folder deletion and
-permanent note deletion require deliberate UI confirmation; permanent deletion
-is also server-guarded to already-trashed notes. Automatic retention is opt-in,
-defaults to never, and preserves inbound mention identity when it removes an
-expired target.
+Folder and tag names, search strings, AI questions, selected writing text,
+filters, sort choices, bulk selections, and retention settings are strictly
+bounded at the route boundary. Full-text search uses Prisma SQL values rather
+than string interpolation, and highlighted database fragments are rendered
+through a marker parser rather than `innerHTML`. Bulk mutations run in one
+transaction and reject stale versions. Folder deletion and permanent note
+deletion require deliberate UI confirmation; permanent deletion is also
+server-guarded to already-trashed notes. Automatic retention is opt-in, defaults
+to never, and preserves inbound mention identity when it removes an expired
+target.
 
 Attachment requests bypass multipart/body aggregation and stream raw bytes with a
 server-enforced maximum. Display filenames are control-stripped, normalized,
@@ -76,7 +77,9 @@ the trusted server environment; requests cannot supply or override either.
 Prompts frame note bodies as untrusted data and explicitly reject instructions
 inside them. Inputs, responses, and exception messages are bounded; model
 requests time out; structured responses are schema-validated; suggested note IDs
-must belong to the server-selected shortlist; and output renders as React text.
+must belong to the server-selected shortlist; Ask-notes answers require a
+validated server-selected citation; rewrite selections must still exist in the
+saved note; and output renders as React text.
 The feature sends no attachment bytes, credentials, URLs from note content,
 editor HTML, or database connection data. There is no tool execution, cloud
 fallback, automatic note mutation, background scan, or persistent AI cache.

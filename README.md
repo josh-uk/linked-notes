@@ -13,7 +13,7 @@ cloud service, or runtime internet dependency. Notes, attachments, links, and
 backlinks stay in a local PostgreSQL-backed workspace and can be exported as a
 portable backup.
 
-![Linked Notes desktop workspace showing a release checklist, linked note, folders, and tags](docs/screenshots/linked-notes-desktop.jpg)
+![Linked Notes desktop workspace showing local AI writing tools, semantic search, notes, folders, and tags](docs/screenshots/linked-notes-desktop.jpg)
 
 ## Highlights
 
@@ -23,10 +23,11 @@ portable backup.
 - **Durable note links.** Type `@` to connect a note. Links follow title changes,
   backlinks include nearby context, and removed targets remain explicit rather
   than silently disappearing.
-- **Optional local AI.** A click-to-run Ollama assistant can summarise a note,
-  identify likely duplicates, and explain useful links. Results remain
-  reviewable until explicitly inserted, and note text never goes to a hosted AI
-  service.
+- **Optional local AI.** A click-to-run Ollama assistant can summarise and
+  rewrite selected text, identify likely duplicates, search by meaning, answer
+  with linked note sources, and suggest folders for unfiled notes. Results
+  remain reviewable until explicitly applied, and note text never goes to a
+  hosted AI service.
 - **Focused rich-text editing.** Headings, lists, checklists, quotes, code,
   links, undo/redo, keyboard creation, debounced autosave, and conflict recovery
   are built in.
@@ -97,10 +98,18 @@ Recreate the app container after changing its environment:
 docker compose up --build -d app
 ```
 
-Expand **AI assistant** below a note, then choose **Summarise** or
-**Find connections**. Analysis runs only after that click. Results are
-ephemeral; **Insert bullets** and **Insert @link** are the only actions that
-change the note, and they use the normal autosave path.
+Expand **AI assistant** below a note to summarise it, find connections, or
+rewrite selected text. The writing tools can shorten, clarify, proofread, make
+bullets, expand an outline, change tone, or translate. Every result is a preview
+until you deliberately insert or replace text through the normal autosave path.
+
+Choose **Meaning** beside the note search box and explicitly run a semantic
+search, or open **Ask notes** to answer a question with clickable source notes.
+In **Folders**, **Suggest folders** scans active and archived unfiled notes and
+lets you review, correct, select, and apply each proposed move. None of these
+actions runs in the background or mutates notes automatically.
+
+![Ask your notes showing a grounded local AI answer with its source note](docs/screenshots/linked-notes-ai-workspace.jpg)
 
 Ollama needs internet access only while models are pulled. Inference requests
 travel from the app container to the configured host endpoint and are not sent
@@ -145,8 +154,15 @@ For upgrades and recovery, follow [releases and upgrades](docs/releases.md) and
   states.
 - Type `@` to search active notes and insert a durable link. Select a mention to
   open its target; expand **Backlinks** to review source notes and context.
-- Expand **AI assistant** to run an optional local summary or connection scan.
-  Review its explanation before inserting bullets or a durable `@` link.
+- Expand **AI assistant** to run a local summary, connection scan, or previewed
+  rewrite of selected text. Review the result before replacing or inserting
+  normal saved note content.
+- Switch search from **Keyword** to **Meaning** for an explicitly submitted
+  semantic search. Use **Ask notes** for an evidence-bound answer with clickable
+  sources.
+- Open **Folders → Suggest folders** to review local-AI destinations for every
+  non-empty unfiled note. Low-confidence suggestions start unselected and every
+  destination remains editable before applying.
 - Press <kbd>Ctrl</kbd>/<kbd>Cmd</kbd>+<kbd>K</kbd> to focus full-text search.
   Search combines with folder, tag, lifecycle, and attachment filters.
 - Create nested folders and coloured tags from the left sidebar. Selection mode
