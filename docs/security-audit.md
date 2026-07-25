@@ -1,8 +1,9 @@
 # Security and privacy audit
 
-This record describes the Phase 6 baseline audited on 19 July 2026. Linked Notes
-is intentionally unauthenticated local software; loopback-only publication is a
-security boundary, not a substitute for authentication on a LAN or the internet.
+This record describes the Phase 6 baseline audited on 19 July 2026 and the 1.1.0
+local-AI review completed on 25 July 2026. Linked Notes is intentionally
+unauthenticated local software; loopback-only publication is a security boundary,
+not a substitute for authentication on a LAN or the internet.
 
 ## Browser and runtime controls
 
@@ -28,16 +29,17 @@ security boundary, not a substitute for authentication on a LAN or the internet.
 
 ## Security regression matrix
 
-| Case                          | Enforced behavior                                                                                                                                                | Evidence                                                                                     |
-| ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| Stored XSS and hostile markup | Strict editor schema, escaped pure renderer, `sanitize-html`, React text insertion, CSP                                                                          | Unit derivation tests and production browser stored-markup test                              |
-| Unsafe URL schemes            | Only bounded root-relative, HTTP(S) without credentials, `mailto:`, and fragments are accepted                                                                   | Unit URL matrix and route-level `javascript:` rejection                                      |
-| Path traversal                | Storage paths accept generated UUID names only; archive paths are canonical relative names                                                                       | Attachment unit/integration tests and traversal archive rejection before mutation            |
-| Misleading active content     | Signature-derived MIME; SVG/HTML-like bytes fall back to attachment-only octet stream                                                                            | Real-PostgreSQL misleading upload test                                                       |
-| Archive abuse                 | Compressed/expanded bytes, entry count, file size, ratio, type, duplicate, checksum, and relation limits are validated before mutation                           | Corrupt, oversized, incomplete, entry-flood, traversal, and expansion-bomb integration cases |
-| PDF renderer SSRF             | JavaScript/service workers disabled, host resolution denied, and every non-`data:`/`blob:` request aborted                                                       | `npm run test:security` injects a loopback image and requires `PDF_NETWORK_REQUEST_BLOCKED`  |
-| Destructive actions           | Permanent deletion requires Trash plus optimistic version and explicit safe-first dialog; replace restore requires literal `REPLACE` and creates a safety backup | Integration guards and desktop browser journeys                                              |
-| Resource exhaustion           | Editor depth/node/text limits, bounded route inputs, streamed attachments, PDF image cap, archive limits, and paginated lists/search/backlinks                   | Unit/integration cases, 10k profile, and 96 MiB memory profile                               |
+| Case                          | Enforced behavior                                                                                                                                                | Evidence                                                                                                              |
+| ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| Stored XSS and hostile markup | Strict editor schema, escaped pure renderer, `sanitize-html`, React text insertion, CSP                                                                          | Unit derivation tests and production browser stored-markup test                                                       |
+| Unsafe URL schemes            | Only bounded root-relative, HTTP(S) without credentials, `mailto:`, and fragments are accepted                                                                   | Unit URL matrix and route-level `javascript:` rejection                                                               |
+| Path traversal                | Storage paths accept generated UUID names only; archive paths are canonical relative names                                                                       | Attachment unit/integration tests and traversal archive rejection before mutation                                     |
+| Misleading active content     | Signature-derived MIME; SVG/HTML-like bytes fall back to attachment-only octet stream                                                                            | Real-PostgreSQL misleading upload test                                                                                |
+| Archive abuse                 | Compressed/expanded bytes, entry count, file size, ratio, type, duplicate, checksum, and relation limits are validated before mutation                           | Corrupt, oversized, incomplete, entry-flood, traversal, and expansion-bomb integration cases                          |
+| PDF renderer SSRF             | JavaScript/service workers disabled, host resolution denied, and every non-`data:`/`blob:` request aborted                                                       | `npm run test:security` injects a loopback image and requires `PDF_NETWORK_REQUEST_BLOCKED`                           |
+| Local AI prompt boundaries    | AI is off by default and click-only; inputs, candidate counts, prompts, outputs, timeouts, and caches are bounded; note text is delimited as untrusted content   | Unit, integration, and browser tests cover injection text, malformed output, stale results, and no automatic requests |
+| Destructive actions           | Permanent deletion requires Trash plus optimistic version and explicit safe-first dialog; replace restore requires literal `REPLACE` and creates a safety backup | Integration guards and desktop browser journeys                                                                       |
+| Resource exhaustion           | Editor depth/node/text limits, bounded route inputs, streamed attachments, PDF image cap, archive limits, and paginated lists/search/backlinks                   | Unit/integration cases, 10k profile, and 96 MiB memory profile                                                        |
 
 ## Logging review
 
@@ -89,4 +91,7 @@ An administrator, a process with Docker/filesystem access, or anyone who can
 reach an intentionally exposed application port can read or alter the workspace.
 Docker image provenance and signed release publication are Phase 7 delivery
 controls. Browser CSP cannot protect a host already compromised outside the
-container boundary.
+container boundary. When AI is enabled, note content selected for an action is
+sent to the configured Ollama endpoint. The supported macOS setup keeps that
+endpoint on the local host; configuring a remote or LAN-accessible endpoint
+changes the privacy boundary and is not a cloud-fallback feature.
