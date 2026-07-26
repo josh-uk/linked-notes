@@ -196,7 +196,7 @@ For upgrades and recovery, follow [releases and upgrades](docs/releases.md) and
   PDF export can include local images, metadata, and bounded backlink context.
 - Choose **Export Markdown** in the command centre for a gzip-compressed folder
   archive of every note plus attachment bytes. **Import notes** previews up to
-  100 Markdown files, preserves nested folders and tags, reconnects exported
+  2,000 Markdown files, preserves nested folders and tags, reconnects exported
   note links, and skips an already imported source by default.
 - Use **Settings → Portable backup** to download or restore the complete
   versioned workspace. Replace restore requires an explicit confirmation and

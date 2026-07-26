@@ -13,7 +13,7 @@ select individual `.md` files or a folder. Linked Notes reads the files locally
 in the browser, sends them only to the local app, and shows a preview before
 committing anything.
 
-One request accepts at most 100 files, 2,000,000 characters per file, and
+One request accepts at most 2,000 files, 2,000,000 characters per file, and
 20,000,000 characters in total. Import paths must be relative, bounded, free of
 traversal segments, and no more than six folders deep. Nested directories become
 nested Linked Notes folders. Simple front matter can preserve:
@@ -64,9 +64,9 @@ Automation permission for Terminal controlling Notes. The exporter:
 - writes `apple-notes-import-report.json` with every truncation, locked note, or
   attachment Notes would not save.
 
-After export, choose the generated folder in **Import notes**. Import in batches
-of 100 Markdown files when the workspace is larger. Apple identities make
-repeated batches and reruns skip notes that already arrived.
+After export, choose the generated folder in **Import notes**. One reviewed
+batch can contain up to 2,000 Markdown files. Apple identities make repeated
+batches and reruns skip notes that already arrived when the workspace is larger.
 
 Locked notes may return no readable content until they are unlocked in Notes.
 Apple also documents that some attachment kinds, including maps and webpage

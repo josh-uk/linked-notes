@@ -5,11 +5,32 @@ import {
   parseMarkdownDocument,
   remapImportedMentions,
 } from "@/server/imports/markdown-document";
+import { markdownImportInputSchema } from "@/server/imports/markdown-import-service";
 
 const targetId = "11111111-1111-4111-8111-111111111111";
 const remappedId = "22222222-2222-4222-8222-222222222222";
 
 describe("Markdown import", () => {
+  it("accepts 2,000 files in one import and rejects larger batches", () => {
+    const files = Array.from({ length: 2_000 }, (_, index) => ({
+      path: `Notes/note-${index}.md`,
+      content: `# Note ${index}`,
+    }));
+
+    expect(
+      markdownImportInputSchema.safeParse({ files, commit: false }).success,
+    ).toBe(true);
+    expect(
+      markdownImportInputSchema.safeParse({
+        files: [
+          ...files,
+          { path: "Notes/one-too-many.md", content: "# Too many" },
+        ],
+        commit: false,
+      }).success,
+    ).toBe(false);
+  });
+
   it("preserves Apple Notes metadata, formatting, tags, and durable note links", () => {
     const parsed = parseMarkdownDocument(
       "iCloud/Projects/Launch.md",
