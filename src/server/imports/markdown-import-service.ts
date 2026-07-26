@@ -4,6 +4,7 @@ import { Prisma } from "@prisma/client";
 import { z } from "zod";
 
 import { EDITOR_DOCUMENT_SCHEMA_VERSION } from "@/features/notes/document-schema";
+import { MAX_MARKDOWN_IMPORT_FILES } from "@/features/notes/import-limits";
 import { prisma } from "@/server/db";
 import { deriveEditorDocument } from "@/server/notes/derive-document";
 import { NoteDomainError } from "@/server/notes/note-errors";
@@ -25,7 +26,7 @@ const importFileSchema = z
 
 export const markdownImportInputSchema = z
   .object({
-    files: z.array(importFileSchema).min(1).max(100),
+    files: z.array(importFileSchema).min(1).max(MAX_MARKDOWN_IMPORT_FILES),
     commit: z.boolean().default(false),
     createCopies: z.boolean().default(false),
   })
@@ -173,7 +174,7 @@ export async function importMarkdownFiles(value: unknown) {
     {
       isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
       maxWait: 10_000,
-      timeout: 120_000,
+      timeout: 600_000,
     },
   );
 

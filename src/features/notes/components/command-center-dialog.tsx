@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 
+import { MAX_MARKDOWN_IMPORT_FILES } from "../import-limits";
 import type {
   AiCleanupResponse,
   AiCleanupSuggestion,
@@ -417,8 +418,10 @@ export function CommandCenterDialog({
       if (markdownFiles.length === 0) {
         throw new Error("Choose one or more Markdown (.md) files.");
       }
-      if (markdownFiles.length > 100) {
-        throw new Error("Import up to 100 Markdown files at a time.");
+      if (markdownFiles.length > MAX_MARKDOWN_IMPORT_FILES) {
+        throw new Error(
+          `Import up to ${MAX_MARKDOWN_IMPORT_FILES.toLocaleString()} Markdown files at a time.`,
+        );
       }
       const values = await Promise.all(
         markdownFiles.map(async (file) => ({
@@ -790,7 +793,10 @@ export function CommandCenterDialog({
               <label>
                 <FileInput size={18} aria-hidden="true" />
                 <strong>Choose Markdown files</strong>
-                <span>Preview up to 100 .md files before importing.</span>
+                <span>
+                  Preview up to {MAX_MARKDOWN_IMPORT_FILES.toLocaleString()} .md
+                  files before importing.
+                </span>
                 <input
                   type="file"
                   aria-label="Choose Markdown files"
